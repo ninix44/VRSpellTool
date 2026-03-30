@@ -1,4 +1,4 @@
-package your.mod.example.core.client.overlays;
+package org.vmstudio.vrspelltool.core.client.overlays;
 
 import me.phoenixra.atumvr.api.misc.color.AtumColor;
 import org.vmstudio.visor.api.client.gui.overlays.RegisterVROverlayTemplate;
@@ -15,18 +15,18 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 
 @RegisterVROverlayTemplate(
-        id = VROverlayTemplateExample.ID,
-        name = VROverlayTemplateExample.NAME,
-        description = VROverlayTemplateExample.DESCRIPTION
+        id = VROverlayTemplateSpellTool.ID,
+        name = VROverlayTemplateSpellTool.NAME,
+        description = VROverlayTemplateSpellTool.DESCRIPTION
 )
-public class VROverlayTemplateExample extends VROverlayTemplateScreen {
-    public static final String ID = "template_example";
-    public static final String NAME = "Example template";
-    public static final String DESCRIPTION = "Example description";
+public class VROverlayTemplateSpellTool extends VROverlayTemplateScreen {
+    public static final String ID = "spelltool_template";
+    public static final String NAME = "SpellTool Template";
+    public static final String DESCRIPTION = "SpellTool Template Overlay";
 
-    private final Component text = Component.literal("Template Overlay Example");
+    private final Component text = Component.literal("SpellTool Template Overlay");
 
-    public VROverlayTemplateExample(@NotNull VisorAddon owner, @NotNull String id) {
+    public VROverlayTemplateSpellTool(@NotNull VisorAddon owner, @NotNull String id) {
         super(owner, id);
         //if you want it to be enabled once created
         setEnabled(true);
@@ -36,7 +36,7 @@ public class VROverlayTemplateExample extends VROverlayTemplateScreen {
     @Override
     protected void onRender(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
         guiGraphics.drawCenteredString(this.font, text,
-                width/2, height/2, AtumColor.WHITE.asInt());
+                width / 2, height / 2, AtumColor.WHITE.asInt());
 
     }
 
@@ -50,13 +50,13 @@ public class VROverlayTemplateExample extends VROverlayTemplateScreen {
         return List.of(
                 new OverlayOptionsMisc(
                         this,
-                        it->{
+                        it -> {
                             it.setOptionsUpdaterType(OverlayOptionsMisc.OptionsUpdaterType.TICK);
                         }
                 ),
                 new OverlayOptionsPose(
                         this,
-                        it->{
+                        it -> {
                             it.setTickPose(true);
                             it.setAimedRotation(false);
                             it.setPositionAnchor(PoseAnchor.HMD);
