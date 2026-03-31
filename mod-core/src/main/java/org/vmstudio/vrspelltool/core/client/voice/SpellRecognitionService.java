@@ -11,6 +11,9 @@ import javax.sound.sampled.DataLine;
 import javax.sound.sampled.TargetDataLine;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,6 +32,10 @@ public final class SpellRecognitionService {
     private Model model;
     private Recognizer recognizer;
     private Recognizer spellRecognizer;
+    private final ArrayDeque<RecognizedFragment> recentFragments = new ArrayDeque<>();
+
+    private static final long FRAGMENT_WINDOW_NANOS = 1_600_000_000L;
+    private static final int MAX_FRAGMENT_COUNT = 4;
 
     public void ensureRunning(Path gameDirectory) {
         if (running.get()) {
@@ -73,6 +80,7 @@ public final class SpellRecognitionService {
 
     public void stop() {
         running.set(false);
+        recentFragments.clear();
 
         if (microphone != null) {
             microphone.stop();
@@ -199,11 +207,18 @@ public final class SpellRecognitionService {
         String rawText = completed ? spellRecognizer.getResult() : spellRecognizer.getPartialResult();
         String text = SpellDictionary.normalize(extractJsonField(rawText, fieldName));
         if (text.isBlank() || "[unk]".equals(text)) {
+            if (completed) {
+                recentFragments.clear();
+            }
             return;
         }
 
-        SpellDictionary.SpellMatch match = SpellDictionary.match(text);
+        SpellDictionary.SpellMatch match = matchWithRecentFragments(text);
         if (match == null) {
+            rememberFragment(text);
+            if (completed) {
+                recentFragments.clear();
+            }
             return;
         }
 
@@ -215,8 +230,55 @@ public final class SpellRecognitionService {
                 match.score()
         ));
 
+        rememberFragment(text);
         if (completed) {
+            recentFragments.clear();
             spellRecognizer.reset();
+        }
+    }
+
+    private SpellDictionary.SpellMatch matchWithRecentFragments(String text) {
+        SpellDictionary.SpellMatch bestMatch = SpellDictionary.match(text);
+        double bestScore = bestMatch == null ? 0.0D : bestMatch.score();
+
+        List<String> fragments = recentFragmentTexts();
+        fragments.add(text);
+
+        for (int count = 2; count <= fragments.size(); count++) {
+            int start = fragments.size() - count;
+            String combined = String.join(" ", fragments.subList(start, fragments.size()));
+            SpellDictionary.SpellMatch combinedMatch = SpellDictionary.match(combined);
+            if (combinedMatch != null && combinedMatch.score() > bestScore) {
+                bestMatch = combinedMatch;
+                bestScore = combinedMatch.score();
+            }
+        }
+
+        return bestMatch;
+    }
+
+    private void rememberFragment(String text) {
+        long now = System.nanoTime();
+        pruneOldFragments(now);
+        if (recentFragments.size() >= MAX_FRAGMENT_COUNT) {
+            recentFragments.removeFirst();
+        }
+        recentFragments.addLast(new RecognizedFragment(text, now));
+    }
+
+    private List<String> recentFragmentTexts() {
+        long now = System.nanoTime();
+        pruneOldFragments(now);
+        List<String> fragments = new ArrayList<>();
+        for (RecognizedFragment fragment : recentFragments) {
+            fragments.add(fragment.text());
+        }
+        return fragments;
+    }
+
+    private void pruneOldFragments(long now) {
+        while (!recentFragments.isEmpty() && now - recentFragments.peekFirst().timestampNanos() > FRAGMENT_WINDOW_NANOS) {
+            recentFragments.removeFirst();
         }
     }
 
@@ -242,5 +304,8 @@ public final class SpellRecognitionService {
         }
 
         return Math.min(1.0D, Math.sqrt(sumSquares / samples) * 3.0D);
+    }
+
+    private record RecognizedFragment(String text, long timestampNanos) {
     }
 }

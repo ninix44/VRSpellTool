@@ -21,18 +21,16 @@ public class TaskSpellVoiceDebug extends VisorTask {
     public static final String ID = "spell_voice_debug";
 
     private static final int STATUS_MESSAGE_INTERVAL_TICKS = 100;
-    private static final int SPELL_REPEAT_COOLDOWN_TICKS = 18;
+    private static final int SPELL_REPEAT_COOLDOWN_TICKS = 32;
 
     private final SpellRecognitionService recognitionService = new SpellRecognitionService();
     private int taskTicks;
     private int nextStatusMessageTick;
     private String lastStatusMessage = "";
     private String lastFinalTranscript = "";
-    private int nextParticleTick;
     private String lastMatchedSpellId = "";
+    private String lastMatchedSpellText = "";
     private int lastMatchedSpellTick;
-    private String lastSpellPartial = "";
-    private int spellPartialRepeats;
 
     public TaskSpellVoiceDebug(@NotNull VisorAddon owner) {
         super(owner);
@@ -85,31 +83,23 @@ public class TaskSpellVoiceDebug extends VisorTask {
 
     private void handleSpellSnapshot(LocalPlayer player, SpellRecognitionSnapshot snapshot) {
         if (snapshot.partial()) {
-            if (snapshot.text().equals(lastSpellPartial)) {
-                spellPartialRepeats++;
-            } else {
-                lastSpellPartial = snapshot.text();
-                spellPartialRepeats = 1;
-            }
-
-            if (spellPartialRepeats < 2 || snapshot.score() < 0.72D || taskTicks < nextParticleTick) {
-                return;
-            }
-        } else {
-            lastSpellPartial = "";
-            spellPartialRepeats = 0;
-        }
-        if (taskTicks < nextParticleTick) {
             return;
         }
-        if (snapshot.candidate().id().equals(lastMatchedSpellId) && taskTicks - lastMatchedSpellTick < SPELL_REPEAT_COOLDOWN_TICKS) {
+
+        if (snapshot.score() < 0.42D) {
+            return;
+        }
+
+        if (snapshot.candidate().id().equals(lastMatchedSpellId)
+                && snapshot.text().equals(lastMatchedSpellText)
+                && taskTicks - lastMatchedSpellTick < SPELL_REPEAT_COOLDOWN_TICKS) {
             return;
         }
 
         spawnSpellParticles(player);
         triggerSpellHaptics(snapshot);
-        nextParticleTick = taskTicks + 10;
         lastMatchedSpellId = snapshot.candidate().id();
+        lastMatchedSpellText = snapshot.text();
         lastMatchedSpellTick = taskTicks;
         sendChat(player, "[MATCH " + Math.round(snapshot.score() * 100.0D) + "%] \"" + snapshot.text() + "\" -> " + snapshot.candidate().displayName());
     }
@@ -168,11 +158,9 @@ public class TaskSpellVoiceDebug extends VisorTask {
         lastStatusMessage = "";
         lastFinalTranscript = "";
         nextStatusMessageTick = 0;
-        nextParticleTick = 0;
         lastMatchedSpellId = "";
+        lastMatchedSpellText = "";
         lastMatchedSpellTick = 0;
-        lastSpellPartial = "";
-        spellPartialRepeats = 0;
     }
 
     @Override

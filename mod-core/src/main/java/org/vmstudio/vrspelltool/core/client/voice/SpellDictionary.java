@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Locale;
 
 public final class SpellDictionary {
-    private static final double MATCH_THRESHOLD = 0.46D;
+    private static final double MATCH_THRESHOLD = 0.38D;
 
     private static final List<SpellCandidate> SPELLS = List.of(
             spell("avada_kedavra", "Avada Kedavra",
@@ -17,6 +17,10 @@ public final class SpellDictionary {
                             "avada kadavra",
                             "avada kedabra",
                             "avada kedara",
+                            "avadakidavra",
+                            "avada kidavra",
+                            "ava da kedavra",
+                            "ava da",
                             "avadakedavra",
                             "avra kedavra",
                             "avadah kedavra",
@@ -29,6 +33,15 @@ public final class SpellDictionary {
                             "avada kadavra",
                             "avada kedabra",
                             "avada kedara",
+                            "avadakidavra",
+                            "avada kidavra",
+                            "ava",
+                            "da",
+                            "keda",
+                            "kedavra",
+                            "vra",
+                            "ava da",
+                            "ava da kedavra",
                             "avadakedavra",
                             "avra kedavra",
                             "avadah kedavra",
@@ -46,6 +59,9 @@ public final class SpellDictionary {
                             "crusio",
                             "crushio",
                             "krucio",
+                            "krutso",
+                            "krusio",
+                            "cru cio",
                             "croozio",
                             "cruciatus",
                             "cruciatos"
@@ -55,6 +71,13 @@ public final class SpellDictionary {
                             "crusio",
                             "crushio",
                             "krucio",
+                            "krutso",
+                            "krusio",
+                            "cru",
+                            "kru",
+                            "cio",
+                            "tsio",
+                            "cru cio",
                             "croozio",
                             "cruciatus",
                             "cruciatos",
@@ -68,6 +91,9 @@ public final class SpellDictionary {
                             "\u044d\u043a\u0441\u043f\u0435\u043b\u044f\u0440\u043c\u0443\u0441",
                             "expelliarmus",
                             "expeliarmus",
+                            "ekspelyarmus",
+                            "expel yar mus",
+                            "expeliar mus",
                             "expelliarms",
                             "expelli armus",
                             "expellarmus"
@@ -75,6 +101,13 @@ public final class SpellDictionary {
                     grammar(
                             "expelliarmus",
                             "expeliarmus",
+                            "ekspelyarmus",
+                            "expel",
+                            "liar",
+                            "armus",
+                            "mus",
+                            "expel yar mus",
+                            "expeliar mus",
                             "expelli armus",
                             "expellarmus",
                             "\u044d\u043a\u0441\u043f\u0435\u043b\u043b\u0438\u0430\u0440\u043c\u0443\u0441",
@@ -88,12 +121,17 @@ public final class SpellDictionary {
                             "lumos",
                             "lumoss",
                             "lumas",
-                            "loomos"
+                            "loomos",
+                            "lyumos"
                     ),
                     grammar(
                             "lumos",
                             "lumas",
                             "loomos",
+                            "lyumos",
+                            "lu",
+                            "lum",
+                            "mos",
                             "\u043b\u044e\u043c\u043e\u0441",
                             "\u043b\u044e\u043c\u0430\u0441"
                     )),
@@ -103,11 +141,19 @@ public final class SpellDictionary {
                             "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u0430\u0440\u0430",
                             "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u043e\u0440\u0430",
                             "sectumsempra",
+                            "sektumsempra",
+                            "sek tum sem pra",
                             "sectum sempra",
                             "sectumsempa"
                     ),
                     grammar(
                             "sectumsempra",
+                            "sektumsempra",
+                            "sek",
+                            "tum",
+                            "sem",
+                            "pra",
+                            "sek tum sem pra",
                             "sectum sempra",
                             "sectumsempa",
                             "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u0440\u0430"
@@ -194,10 +240,22 @@ public final class SpellDictionary {
             return 1.0D;
         }
 
+        String compactTranscript = transcript.replace(" ", "");
+        String compactPhrase = phrase.replace(" ", "");
+        if (compactTranscript.equals(compactPhrase)) {
+            return 0.97D;
+        }
+
         if (transcript.contains(phrase) || phrase.contains(transcript)) {
             double ratio = (double) Math.min(transcript.length(), phrase.length())
                     / (double) Math.max(transcript.length(), phrase.length());
             return 0.80D + ratio * 0.20D;
+        }
+
+        if (compactTranscript.contains(compactPhrase) || compactPhrase.contains(compactTranscript)) {
+            double ratio = (double) Math.min(compactTranscript.length(), compactPhrase.length())
+                    / (double) Math.max(compactTranscript.length(), compactPhrase.length());
+            return 0.78D + ratio * 0.18D;
         }
 
         int distance = levenshteinDistance(transcript, phrase);
@@ -205,8 +263,13 @@ public final class SpellDictionary {
         if (maxLength == 0) {
             return 1.0D;
         }
+        double directScore = 1.0D - ((double) distance / (double) maxLength);
 
-        return 1.0D - ((double) distance / (double) maxLength);
+        int compactDistance = levenshteinDistance(compactTranscript, compactPhrase);
+        int compactMaxLength = Math.max(compactTranscript.length(), compactPhrase.length());
+        double compactScore = compactMaxLength == 0 ? 1.0D : 1.0D - ((double) compactDistance / (double) compactMaxLength);
+
+        return Math.max(directScore, compactScore);
     }
 
     private static int levenshteinDistance(String left, String right) {
