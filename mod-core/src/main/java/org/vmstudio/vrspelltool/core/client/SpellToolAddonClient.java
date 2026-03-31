@@ -21,11 +21,13 @@ public class SpellToolAddonClient implements VisorAddon {
                                 new VROverlaySpellTool(
                                         this,
                                         VROverlaySpellTool.ID
-                                ),
-                                new VROverlayTemplateSpellTool(
-                                        this,
-                                        VROverlayTemplateSpellTool.ID
                                 )
+                                /*
+                                , new VROverlayTemplateExample(
+                                        this,
+                                        VROverlayTemplateExample.ID
+                                )
+                                */
                         )
                 );
     }
