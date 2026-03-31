@@ -11,7 +11,6 @@ import javax.sound.sampled.DataLine;
 import javax.sound.sampled.TargetDataLine;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -21,9 +20,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class SpellRecognitionService {
     private static final float SAMPLE_RATE = 16000.0F;
     private static final AudioFormat AUDIO_FORMAT = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
+    private static final double FULL_FORM_THRESHOLD = 0.70D;
+    private static final double STEP_THRESHOLD = 0.62D;
+    private static final long SEQUENCE_TIMEOUT_NANOS = 2_600_000_000L;
 
     private final ConcurrentLinkedQueue<SpellRecognitionSnapshot> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final List<SequenceState> sequenceStates = new ArrayList<>();
 
     private volatile String statusMessage = "Voice debug idle";
     private volatile double lastAudioLevel;
@@ -31,10 +34,6 @@ public final class SpellRecognitionService {
     private TargetDataLine microphone;
     private Model model;
     private Recognizer spellRecognizer;
-    private final ArrayDeque<RecognizedFragment> recentFragments = new ArrayDeque<>();
-
-    private static final long FRAGMENT_WINDOW_NANOS = 1_600_000_000L;
-    private static final int MAX_FRAGMENT_COUNT = 4;
 
     public void ensureRunning(Path gameDirectory) {
         if (running.get()) {
@@ -52,6 +51,11 @@ public final class SpellRecognitionService {
             model = new Model(modelPath.toString());
             spellRecognizer = new Recognizer(model, SAMPLE_RATE, SpellDictionary.grammarJson());
 
+            sequenceStates.clear();
+            for (SpellDictionary.SpellPattern pattern : SpellDictionary.spells()) {
+                sequenceStates.add(new SequenceState(pattern));
+            }
+
             DataLine.Info info = new DataLine.Info(TargetDataLine.class, AUDIO_FORMAT);
             microphone = (TargetDataLine) AudioSystem.getLine(info);
             microphone.open(AUDIO_FORMAT);
@@ -61,7 +65,7 @@ public final class SpellRecognitionService {
             workerThread = new Thread(this::captureLoop, "VRSpellTool-Speech");
             workerThread.setDaemon(true);
             workerThread.start();
-            statusMessage = "Voice debug active. Listening with offline model: " + modelPath.getFileName() + " | syllable spell mode enabled";
+            statusMessage = "Voice debug active. Listening with offline model: " + modelPath.getFileName() + " | ordered syllable spell mode enabled";
         } catch (Exception exception) {
             statusMessage = "Voice debug failed to start: " + cleanMessage(exception);
             stop();
@@ -78,7 +82,7 @@ public final class SpellRecognitionService {
 
     public void stop() {
         running.set(false);
-        recentFragments.clear();
+        sequenceStates.clear();
 
         if (microphone != null) {
             microphone.stop();
@@ -109,13 +113,157 @@ public final class SpellRecognitionService {
                     continue;
                 }
                 lastAudioLevel = computeAudioLevel(buffer, read);
-
                 processSpellRecognizer(buffer, read);
             }
         } catch (Exception exception) {
             statusMessage = "Voice debug stopped: " + cleanMessage(exception);
         } finally {
             stop();
+        }
+    }
+
+    private void processSpellRecognizer(byte[] buffer, int read) {
+        if (spellRecognizer == null) {
+            return;
+        }
+
+        boolean completed = spellRecognizer.acceptWaveForm(buffer, read);
+        String fieldName = completed ? "text" : "partial";
+        String rawText = completed ? spellRecognizer.getResult() : spellRecognizer.getPartialResult();
+        String text = SpellDictionary.normalize(extractJsonField(rawText, fieldName));
+        if (text.isBlank() || "[unk]".equals(text)) {
+            if (completed) {
+                spellRecognizer.reset();
+            }
+            return;
+        }
+
+        SpellRecognitionSnapshot fullMatch = tryFullForm(text);
+        if (fullMatch != null) {
+            queue.offer(fullMatch);
+            resetAllSequences();
+            if (completed) {
+                spellRecognizer.reset();
+            }
+            return;
+        }
+
+        SpellRecognitionSnapshot sequenceMatch = advanceSequences(text);
+        if (sequenceMatch != null) {
+            queue.offer(sequenceMatch);
+            resetAllSequences();
+            if (completed) {
+                spellRecognizer.reset();
+            }
+            return;
+        }
+
+        if (completed) {
+            spellRecognizer.reset();
+        }
+    }
+
+    private SpellRecognitionSnapshot tryFullForm(String text) {
+        SpellCandidate bestCandidate = null;
+        double bestScore = 0.0D;
+
+        for (SpellDictionary.SpellPattern pattern : SpellDictionary.spells()) {
+            double score = SpellDictionary.bestScore(text, pattern.fullForms());
+            if (score > bestScore) {
+                bestScore = score;
+                bestCandidate = pattern.candidate();
+            }
+        }
+
+        if (bestCandidate == null || bestScore < FULL_FORM_THRESHOLD) {
+            return null;
+        }
+
+        return new SpellRecognitionSnapshot(
+                bestCandidate.displayName(),
+                false,
+                true,
+                bestCandidate,
+                bestScore
+        );
+    }
+
+    private SpellRecognitionSnapshot advanceSequences(String text) {
+        long now = System.nanoTime();
+        for (SequenceState state : sequenceStates) {
+            state.expireIfTimedOut(now);
+
+            for (List<String> sequence : state.pattern.sequences()) {
+                int matchedSteps = state.progressFor(sequence);
+                if (matchedSteps >= sequence.size()) {
+                    state.reset(sequence);
+                    continue;
+                }
+
+                double score = scoreSequenceStep(text, sequence.get(matchedSteps));
+                if (score >= STEP_THRESHOLD) {
+                    int nextStep = matchedSteps + 1;
+                    state.update(sequence, nextStep, now);
+                    if (nextStep >= sequence.size()) {
+                        state.reset(sequence);
+                        return new SpellRecognitionSnapshot(
+                                state.pattern.candidate().displayName(),
+                                false,
+                                true,
+                                state.pattern.candidate(),
+                                score
+                        );
+                    }
+                } else if (matchedSteps == 0) {
+                } else {
+                    state.reset(sequence);
+                    double restartScore = scoreSequenceStep(text, sequence.get(0));
+                    if (restartScore >= STEP_THRESHOLD) {
+                        state.update(sequence, 1, now);
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private double scoreSequenceStep(String heard, String expected) {
+        List<String> variants = new ArrayList<>();
+        variants.add(expected);
+
+        if ("kedavra".equals(expected)) {
+            variants.add("kidavra");
+            variants.add("ki davra");
+            variants.add("davra");
+        } else if ("kidavra".equals(expected)) {
+            variants.add("kedavra");
+            variants.add("ki davra");
+            variants.add("davra");
+        } else if ("cio".equals(expected) || "tsio".equals(expected) || "sio".equals(expected)) {
+            variants.add("cio");
+            variants.add("tsio");
+            variants.add("sio");
+            variants.add("zio");
+            variants.add("tso");
+        } else if ("liar".equals(expected) || "yar".equals(expected)) {
+            variants.add("liar");
+            variants.add("yar");
+            variants.add("li ar");
+        } else if ("armus".equals(expected)) {
+            variants.add("armus");
+            variants.add("yar mus");
+        } else if ("sempra".equals(expected)) {
+            variants.add("sempra");
+            variants.add("sem pra");
+        }
+
+        return SpellDictionary.bestScore(heard, variants);
+    }
+
+    private void resetAllSequences() {
+        for (SequenceState state : sequenceStates) {
+            state.resetAll();
         }
     }
 
@@ -171,91 +319,6 @@ public final class SpellRecognitionService {
         return Objects.requireNonNullElse(message, exception.getClass().getSimpleName());
     }
 
-    private void processSpellRecognizer(byte[] buffer, int read) {
-        if (spellRecognizer == null) {
-            return;
-        }
-
-        boolean completed = spellRecognizer.acceptWaveForm(buffer, read);
-        String fieldName = completed ? "text" : "partial";
-        String rawText = completed ? spellRecognizer.getResult() : spellRecognizer.getPartialResult();
-        String text = SpellDictionary.normalize(extractJsonField(rawText, fieldName));
-        if (text.isBlank() || "[unk]".equals(text)) {
-            if (completed) {
-                recentFragments.clear();
-            }
-            return;
-        }
-
-        SpellDictionary.SpellMatch match = matchWithRecentFragments(text);
-        if (match == null) {
-            rememberFragment(text);
-            if (completed) {
-                recentFragments.clear();
-            }
-            return;
-        }
-
-        queue.offer(new SpellRecognitionSnapshot(
-                match.score() >= 0.72D ? match.candidate().displayName() : text,
-                !completed,
-                true,
-                match.candidate(),
-                match.score()
-        ));
-
-        rememberFragment(text);
-        if (completed) {
-            recentFragments.clear();
-            spellRecognizer.reset();
-        }
-    }
-
-    private SpellDictionary.SpellMatch matchWithRecentFragments(String text) {
-        SpellDictionary.SpellMatch bestMatch = SpellDictionary.match(text);
-        double bestScore = bestMatch == null ? 0.0D : bestMatch.score();
-
-        List<String> fragments = recentFragmentTexts();
-        fragments.add(text);
-
-        for (int count = 2; count <= fragments.size(); count++) {
-            int start = fragments.size() - count;
-            String combined = String.join(" ", fragments.subList(start, fragments.size()));
-            SpellDictionary.SpellMatch combinedMatch = SpellDictionary.match(combined);
-            if (combinedMatch != null && combinedMatch.score() > bestScore) {
-                bestMatch = combinedMatch;
-                bestScore = combinedMatch.score();
-            }
-        }
-
-        return bestMatch;
-    }
-
-    private void rememberFragment(String text) {
-        long now = System.nanoTime();
-        pruneOldFragments(now);
-        if (recentFragments.size() >= MAX_FRAGMENT_COUNT) {
-            recentFragments.removeFirst();
-        }
-        recentFragments.addLast(new RecognizedFragment(text, now));
-    }
-
-    private List<String> recentFragmentTexts() {
-        long now = System.nanoTime();
-        pruneOldFragments(now);
-        List<String> fragments = new ArrayList<>();
-        for (RecognizedFragment fragment : recentFragments) {
-            fragments.add(fragment.text());
-        }
-        return fragments;
-    }
-
-    private void pruneOldFragments(long now) {
-        while (!recentFragments.isEmpty() && now - recentFragments.peekFirst().timestampNanos() > FRAGMENT_WINDOW_NANOS) {
-            recentFragments.removeFirst();
-        }
-    }
-
     private static double computeAudioLevel(byte[] buffer, int read) {
         if (read < 2) {
             return 0.0D;
@@ -280,6 +343,70 @@ public final class SpellRecognitionService {
         return Math.min(1.0D, Math.sqrt(sumSquares / samples) * 3.0D);
     }
 
-    private record RecognizedFragment(String text, long timestampNanos) {
+    private static final class SequenceState {
+        private final SpellDictionary.SpellPattern pattern;
+        private final List<SequenceProgress> progresses = new ArrayList<>();
+
+        private SequenceState(SpellDictionary.SpellPattern pattern) {
+            this.pattern = pattern;
+            for (List<String> sequence : pattern.sequences()) {
+                progresses.add(new SequenceProgress(sequence));
+            }
+        }
+
+        private int progressFor(List<String> sequence) {
+            for (SequenceProgress progress : progresses) {
+                if (progress.sequence.equals(sequence)) {
+                    return progress.stepIndex;
+                }
+            }
+            return 0;
+        }
+
+        private void update(List<String> sequence, int stepIndex, long now) {
+            for (SequenceProgress progress : progresses) {
+                if (progress.sequence.equals(sequence)) {
+                    progress.stepIndex = stepIndex;
+                    progress.lastUpdateNanos = now;
+                    return;
+                }
+            }
+        }
+
+        private void reset(List<String> sequence) {
+            for (SequenceProgress progress : progresses) {
+                if (progress.sequence.equals(sequence)) {
+                    progress.stepIndex = 0;
+                    progress.lastUpdateNanos = 0L;
+                    return;
+                }
+            }
+        }
+
+        private void resetAll() {
+            for (SequenceProgress progress : progresses) {
+                progress.stepIndex = 0;
+                progress.lastUpdateNanos = 0L;
+            }
+        }
+
+        private void expireIfTimedOut(long now) {
+            for (SequenceProgress progress : progresses) {
+                if (progress.stepIndex > 0 && now - progress.lastUpdateNanos > SEQUENCE_TIMEOUT_NANOS) {
+                    progress.stepIndex = 0;
+                    progress.lastUpdateNanos = 0L;
+                }
+            }
+        }
+    }
+
+    private static final class SequenceProgress {
+        private final List<String> sequence;
+        private int stepIndex;
+        private long lastUpdateNanos;
+
+        private SequenceProgress(List<String> sequence) {
+            this.sequence = sequence;
+        }
     }
 }

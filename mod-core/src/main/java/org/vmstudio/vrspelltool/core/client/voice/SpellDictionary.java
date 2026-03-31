@@ -4,180 +4,130 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class SpellDictionary {
-    private static final double MATCH_THRESHOLD = 0.38D;
-
-    private static final List<SpellCandidate> SPELLS = List.of(
-            spell("avada_kedavra", "Avada Kedavra",
-                    phrases(
-                            "\u0430\u0432\u0430\u0434\u0430 \u043a\u0435\u0434\u0430\u0432\u0440\u0430",
-                            "\u0430\u0432\u0430\u0434\u0430 \u043a\u0438\u0434\u0430\u0432\u0440\u0430",
-                            "avada kedavra",
-                            "avada kadavra",
-                            "avada kedabra",
-                            "avada kedara",
-                            "avadakidavra",
-                            "avada kidavra",
-                            "ava da kedavra"
-                    ),
-                    grammar(
-                            "avada kedavra",
-                            "avada kadavra",
-                            "avada kedabra",
-                            "avada kedara",
-                            "avadakidavra",
-                            "avada kidavra",
-                            "ava",
-                            "da",
-                            "keda",
-                            "kedavra",
-                            "vra",
-                            "ava da kedavra",
-                            "\u0430\u0432\u0430\u0434\u0430 \u043a\u0435\u0434\u0430\u0432\u0440\u0430",
-                            "\u0430\u0432\u0430\u0434\u0430 \u043a\u0438\u0434\u0430\u0432\u0440\u0430"
-                    )),
-            spell("crucio", "Crucio",
-                    phrases(
-                            "\u043a\u0440\u0443\u0446\u0438\u043e",
-                            "\u043a\u0440\u0443\u0447\u0438\u043e",
-                            "\u043a\u0440\u0443\u0446\u0438\u0430\u0442\u0443\u0441",
-                            "\u043a\u0440\u0443\u0447\u0438\u0430\u0442\u0443\u0441",
-                            "crucio",
-                            "crusio",
-                            "crushio",
-                            "krucio",
-                            "krutso",
-                            "krusio",
-                            "cru cio"
-                    ),
-                    grammar(
-                            "crucio",
-                            "crusio",
-                            "crushio",
-                            "krucio",
-                            "krutso",
-                            "krusio",
-                            "cru",
-                            "kru",
-                            "cio",
-                            "tsio",
-                            "cru cio",
-                            "\u043a\u0440\u0443\u0446\u0438\u043e",
-                            "\u043a\u0440\u0443\u0447\u0438\u043e"
-                    )),
-            spell("expelliarmus", "Expelliarmus",
-                    phrases(
-                            "\u044d\u043a\u0441\u043f\u0435\u043b\u043b\u0438\u0430\u0440\u043c\u0443\u0441",
-                            "\u044d\u043a\u0441\u043f\u0435\u043b\u0438\u0430\u0440\u043c\u0443\u0441",
-                            "\u044d\u043a\u0441\u043f\u0435\u043b\u044f\u0440\u043c\u0443\u0441",
-                            "expelliarmus",
-                            "expeliarmus",
-                            "ekspelyarmus",
-                            "expel yar mus",
-                            "expeliar mus",
-                            "expelli armus"
-                    ),
-                    grammar(
-                            "expelliarmus",
-                            "expeliarmus",
-                            "ekspelyarmus",
-                            "expel",
-                            "liar",
-                            "armus",
-                            "mus",
-                            "expel yar mus",
-                            "expeliar mus",
-                            "expelli armus",
-                            "\u044d\u043a\u0441\u043f\u0435\u043b\u043b\u0438\u0430\u0440\u043c\u0443\u0441",
-                            "\u044d\u043a\u0441\u043f\u0435\u043b\u0438\u0430\u0440\u043c\u0443\u0441"
-                    )),
-            spell("lumos", "Lumos",
-                    phrases(
-                            "\u043b\u044e\u043c\u043e\u0441",
-                            "\u043b\u044e\u043c\u0430\u0441",
-                            "\u043b\u044e\u043c\u0443\u0441",
-                            "lumos",
-                            "lumoss",
-                            "lumas",
-                            "loomos",
-                            "lyumos"
-                    ),
-                    grammar(
-                            "lumos",
-                            "lumas",
-                            "loomos",
-                            "lyumos",
-                            "lu",
-                            "lum",
-                            "mos",
-                            "\u043b\u044e\u043c\u043e\u0441",
-                            "\u043b\u044e\u043c\u0430\u0441"
-                    )),
-            spell("sectumsempra", "Sectumsempra",
-                    phrases(
-                            "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u0440\u0430",
-                            "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u0430\u0440\u0430",
-                            "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u043e\u0440\u0430",
-                            "sectumsempra",
-                            "sektumsempra",
-                            "sek tum sem pra"
-                    ),
-                    grammar(
-                            "sectumsempra",
-                            "sektumsempra",
-                            "sek",
-                            "tum",
-                            "sem",
-                            "pra",
-                            "sek tum sem pra",
-                            "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u0440\u0430"
-                    ))
-    );
-
     private SpellDictionary() {
     }
 
-    public static SpellMatch match(String transcript) {
-        String normalized = normalize(transcript);
-        if (normalized.isBlank()) {
-            return null;
-        }
+    private static final List<SpellPattern> SPELLS = List.of(
+            spell(
+                    "avada_kedavra",
+                    "Avada Kedavra",
+                    List.of(
+                            "avada kedavra",
+                            "avada kadavra",
+                            "avada kedabra",
+                            "avada kidavra",
+                            "avadakidavra",
+                            "\u0430\u0432\u0430\u0434\u0430 \u043a\u0435\u0434\u0430\u0432\u0440\u0430",
+                            "\u0430\u0432\u0430\u0434\u0430 \u043a\u0438\u0434\u0430\u0432\u0440\u0430"
+                    ),
+                    List.of(
+                            List.of("avada", "kedavra"),
+                            List.of("ava", "da", "kedavra"),
+                            List.of("avada", "kidavra"),
+                            List.of("ava", "da", "ki", "davra"),
+                            List.of("avada", "ki", "davra"),
+                            List.of("avada", "ki davra")
+                    )
+            ),
+            spell(
+                    "crucio",
+                    "Crucio",
+                    List.of(
+                            "crucio",
+                            "crusio",
+                            "crushio",
+                            "krucio",
+                            "krutso",
+                            "krusio",
+                            "\u043a\u0440\u0443\u0446\u0438\u043e",
+                            "\u043a\u0440\u0443\u0447\u0438\u043e"
+                    ),
+                    List.of(
+                            List.of("cru", "cio"),
+                            List.of("kru", "cio"),
+                            List.of("cru", "tsio"),
+                            List.of("kru", "tsio"),
+                            List.of("cru", "sio")
+                    )
+            ),
+            spell(
+                    "expelliarmus",
+                    "Expelliarmus",
+                    List.of(
+                            "expelliarmus",
+                            "expeliarmus",
+                            "ekspelyarmus",
+                            "expelli armus",
+                            "\u044d\u043a\u0441\u043f\u0435\u043b\u043b\u0438\u0430\u0440\u043c\u0443\u0441",
+                            "\u044d\u043a\u0441\u043f\u0435\u043b\u044f\u0440\u043c\u0443\u0441"
+                    ),
+                    List.of(
+                            List.of("expel", "liar", "mus"),
+                            List.of("expelli", "armus"),
+                            List.of("ekspel", "yar", "mus"),
+                            List.of("expel", "yar", "mus"),
+                            List.of("expeli", "armus")
+                    )
+            ),
+            spell(
+                    "lumos",
+                    "Lumos",
+                    List.of(
+                            "lumos",
+                            "lumoss",
+                            "lyumos",
+                            "\u043b\u044e\u043c\u043e\u0441",
+                            "\u043b\u044e\u043c\u0443\u0441"
+                    ),
+                    List.of(
+                            List.of("lu", "mos"),
+                            List.of("lyu", "mos"),
+                            List.of("\u043b\u044e", "\u043c\u043e\u0441")
+                    )
+            ),
+            spell(
+                    "sectumsempra",
+                    "Sectumsempra",
+                    List.of(
+                            "sectumsempra",
+                            "sektumsempra",
+                            "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u0440\u0430"
+                    ),
+                    List.of(
+                            List.of("sectum", "sempra"),
+                            List.of("sektum", "sempra"),
+                            List.of("sek", "tum", "sem", "pra"),
+                            List.of("\u0441\u0435\u043a\u0442\u0443\u043c", "\u0441\u0435\u043c\u043f\u0440\u0430")
+                    )
+            )
+    );
 
-        SpellCandidate bestCandidate = null;
-        double bestScore = 0.0D;
-
-        for (SpellCandidate spell : SPELLS) {
-            for (String phrase : spell.phrases()) {
-                double score = score(normalized, phrase);
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestCandidate = spell;
-                }
+    public static String grammarJson() {
+        List<String> entries = new ArrayList<>();
+        for (SpellPattern spell : SPELLS) {
+            entries.addAll(spell.fullForms());
+            for (List<String> sequence : spell.sequences()) {
+                entries.addAll(sequence);
             }
         }
 
-        if (bestCandidate == null || bestScore < MATCH_THRESHOLD) {
-            return null;
-        }
-
-        return new SpellMatch(bestCandidate, bestScore);
-    }
-
-    public static String grammarJson() {
         StringBuilder builder = new StringBuilder("[");
-        List<String> phrases = new ArrayList<>();
-        for (SpellCandidate spell : SPELLS) {
-            phrases.addAll(spell.grammarPhrases());
-        }
-        for (int i = 0; i < phrases.size(); i++) {
+        for (int i = 0; i < entries.size(); i++) {
             if (i > 0) {
                 builder.append(',');
             }
-            builder.append('"').append(escapeJson(phrases.get(i))).append('"');
+            builder.append('"').append(escapeJson(entries.get(i))).append('"');
         }
         builder.append(",\"[unk]\"]");
         return builder.toString();
+    }
+
+    public static List<SpellPattern> spells() {
+        return SPELLS;
     }
 
     public static String normalize(String value) {
@@ -189,62 +139,56 @@ public final class SpellDictionary {
                 .trim();
     }
 
-    private static SpellCandidate spell(String id, String displayName, String[] phrases, String[] grammarPhrases) {
-        return new SpellCandidate(
+    public static double score(String heard, String expected) {
+        String normalizedHeard = normalize(heard);
+        String normalizedExpected = normalize(expected);
+
+        if (normalizedHeard.equals(normalizedExpected)) {
+            return 1.0D;
+        }
+
+        String compactHeard = normalizedHeard.replace(" ", "");
+        String compactExpected = normalizedExpected.replace(" ", "");
+        if (compactHeard.equals(compactExpected)) {
+            return 0.98D;
+        }
+
+        int distance = levenshteinDistance(compactHeard, compactExpected);
+        int maxLength = Math.max(compactHeard.length(), compactExpected.length());
+        if (maxLength == 0) {
+            return 1.0D;
+        }
+
+        return 1.0D - ((double) distance / (double) maxLength);
+    }
+
+    public static double bestScore(String heard, List<String> expectedVariants) {
+        double best = 0.0D;
+        for (String expected : expectedVariants) {
+            best = Math.max(best, score(heard, expected));
+        }
+        return best;
+    }
+
+    private static SpellPattern spell(String id, String displayName, List<String> fullForms, List<List<String>> sequences) {
+        SpellCandidate candidate = new SpellCandidate(
                 id,
                 displayName,
-                java.util.Arrays.stream(phrases).map(SpellDictionary::normalize).collect(java.util.stream.Collectors.toUnmodifiableSet()),
-                java.util.Arrays.stream(grammarPhrases).map(SpellDictionary::normalize).collect(java.util.stream.Collectors.toUnmodifiableSet())
+                fullForms.stream().map(SpellDictionary::normalize).collect(Collectors.toUnmodifiableSet()),
+                fullForms.stream().map(SpellDictionary::normalize).collect(Collectors.toUnmodifiableSet())
         );
-    }
 
-    private static String[] phrases(String... values) {
-        return values;
-    }
-
-    private static String[] grammar(String... values) {
-        return values;
+        return new SpellPattern(
+                candidate,
+                fullForms.stream().map(SpellDictionary::normalize).toList(),
+                sequences.stream()
+                        .map(sequence -> sequence.stream().map(SpellDictionary::normalize).toList())
+                        .toList()
+        );
     }
 
     private static String escapeJson(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
-    private static double score(String transcript, String phrase) {
-        if (transcript.equals(phrase)) {
-            return 1.0D;
-        }
-
-        String compactTranscript = transcript.replace(" ", "");
-        String compactPhrase = phrase.replace(" ", "");
-        if (compactTranscript.equals(compactPhrase)) {
-            return 0.97D;
-        }
-
-        if (transcript.contains(phrase) || phrase.contains(transcript)) {
-            double ratio = (double) Math.min(transcript.length(), phrase.length())
-                    / (double) Math.max(transcript.length(), phrase.length());
-            return 0.80D + ratio * 0.20D;
-        }
-
-        if (compactTranscript.contains(compactPhrase) || compactPhrase.contains(compactTranscript)) {
-            double ratio = (double) Math.min(compactTranscript.length(), compactPhrase.length())
-                    / (double) Math.max(compactTranscript.length(), compactPhrase.length());
-            return 0.78D + ratio * 0.18D;
-        }
-
-        int distance = levenshteinDistance(transcript, phrase);
-        int maxLength = Math.max(transcript.length(), phrase.length());
-        if (maxLength == 0) {
-            return 1.0D;
-        }
-        double directScore = 1.0D - ((double) distance / (double) maxLength);
-
-        int compactDistance = levenshteinDistance(compactTranscript, compactPhrase);
-        int compactMaxLength = Math.max(compactTranscript.length(), compactPhrase.length());
-        double compactScore = compactMaxLength == 0 ? 1.0D : 1.0D - ((double) compactDistance / (double) compactMaxLength);
-
-        return Math.max(directScore, compactScore);
     }
 
     private static int levenshteinDistance(String left, String right) {
@@ -275,6 +219,6 @@ public final class SpellDictionary {
         return previous[right.length()];
     }
 
-    public record SpellMatch(SpellCandidate candidate, double score) {
+    public record SpellPattern(SpellCandidate candidate, List<String> fullForms, List<List<String>> sequences) {
     }
 }
