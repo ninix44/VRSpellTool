@@ -32,6 +32,7 @@ version = version+"-forge"
 dependencies {
     shadowCommon(project(path: ":mod-core", configuration: "transformProductionForge")) { transitive = false }
     common(project(path: ":mod-core", configuration: "namedElements")) { transitive false }
+    bundle("com.alphacephei:vosk:0.3.45")
 
 
     //
