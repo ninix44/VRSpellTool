@@ -2,34 +2,17 @@ package org.vmstudio.vrspelltool.core.client;
 
 import org.vmstudio.visor.api.VisorAPI;
 import org.vmstudio.visor.api.common.addon.VisorAddon;
-import org.vmstudio.vrspelltool.core.client.overlays.VROverlaySpellTool;
-import org.vmstudio.vrspelltool.core.client.overlays.VROverlayTemplateSpellTool;
 import org.vmstudio.vrspelltool.core.common.VisorSpellTool;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.List;
 
 public class SpellToolAddonClient implements VisorAddon {
     @Override
     public void onAddonLoad() {
         VisorAPI.addonManager().getRegistries()
                 .overlays()
-                .registerComponents(
-                        List.of(
-                                new VROverlaySpellTool(
-                                        this,
-                                        VROverlaySpellTool.ID
-                                )
-                                /*
-                                , new VROverlayTemplateExample(
-                                        this,
-                                        VROverlayTemplateExample.ID
-                                )
-                                */
-                        )
-                );
+                .registerComponents(java.util.List.of());
     }
 
     @Override
