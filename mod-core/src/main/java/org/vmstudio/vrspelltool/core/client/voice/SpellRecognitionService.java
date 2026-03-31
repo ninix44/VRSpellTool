@@ -30,7 +30,6 @@ public final class SpellRecognitionService {
     private Thread workerThread;
     private TargetDataLine microphone;
     private Model model;
-    private Recognizer recognizer;
     private Recognizer spellRecognizer;
     private final ArrayDeque<RecognizedFragment> recentFragments = new ArrayDeque<>();
 
@@ -51,7 +50,6 @@ public final class SpellRecognitionService {
         try {
             LibVosk.setLogLevel(LogLevel.WARNINGS);
             model = new Model(modelPath.toString());
-            recognizer = new Recognizer(model, SAMPLE_RATE);
             spellRecognizer = new Recognizer(model, SAMPLE_RATE, SpellDictionary.grammarJson());
 
             DataLine.Info info = new DataLine.Info(TargetDataLine.class, AUDIO_FORMAT);
@@ -63,7 +61,7 @@ public final class SpellRecognitionService {
             workerThread = new Thread(this::captureLoop, "VRSpellTool-Speech");
             workerThread.setDaemon(true);
             workerThread.start();
-            statusMessage = "Voice debug active. Listening with offline model: " + modelPath.getFileName() + " | fuzzy spell matching enabled";
+            statusMessage = "Voice debug active. Listening with offline model: " + modelPath.getFileName() + " | syllable spell mode enabled";
         } catch (Exception exception) {
             statusMessage = "Voice debug failed to start: " + cleanMessage(exception);
             stop();
@@ -86,11 +84,6 @@ public final class SpellRecognitionService {
             microphone.stop();
             microphone.close();
             microphone = null;
-        }
-
-        if (recognizer != null) {
-            recognizer.close();
-            recognizer = null;
         }
 
         if (spellRecognizer != null) {
@@ -118,25 +111,6 @@ public final class SpellRecognitionService {
                 lastAudioLevel = computeAudioLevel(buffer, read);
 
                 processSpellRecognizer(buffer, read);
-
-                boolean completed = recognizer.acceptWaveForm(buffer, read);
-                if (!completed) {
-                    continue;
-                }
-
-                String finalText = SpellDictionary.normalize(extractJsonField(recognizer.getResult(), "text"));
-                if (finalText.isBlank()) {
-                    continue;
-                }
-
-                SpellDictionary.SpellMatch match = SpellDictionary.match(finalText);
-                queue.offer(new SpellRecognitionSnapshot(
-                        finalText,
-                        false,
-                        false,
-                        match == null ? null : match.candidate(),
-                        match == null ? 0.0D : match.score()
-                ));
             }
         } catch (Exception exception) {
             statusMessage = "Voice debug stopped: " + cleanMessage(exception);
@@ -223,7 +197,7 @@ public final class SpellRecognitionService {
         }
 
         queue.offer(new SpellRecognitionSnapshot(
-                text,
+                match.score() >= 0.72D ? match.candidate().displayName() : text,
                 !completed,
                 true,
                 match.candidate(),

@@ -19,14 +19,7 @@ public final class SpellDictionary {
                             "avada kedara",
                             "avadakidavra",
                             "avada kidavra",
-                            "ava da kedavra",
-                            "ava da",
-                            "avadakedavra",
-                            "avra kedavra",
-                            "avadah kedavra",
-                            "abada kedavra",
-                            "avada",
-                            "kedavra"
+                            "ava da kedavra"
                     ),
                     grammar(
                             "avada kedavra",
@@ -40,12 +33,7 @@ public final class SpellDictionary {
                             "keda",
                             "kedavra",
                             "vra",
-                            "ava da",
                             "ava da kedavra",
-                            "avadakedavra",
-                            "avra kedavra",
-                            "avadah kedavra",
-                            "abada kedavra",
                             "\u0430\u0432\u0430\u0434\u0430 \u043a\u0435\u0434\u0430\u0432\u0440\u0430",
                             "\u0430\u0432\u0430\u0434\u0430 \u043a\u0438\u0434\u0430\u0432\u0440\u0430"
                     )),
@@ -61,10 +49,7 @@ public final class SpellDictionary {
                             "krucio",
                             "krutso",
                             "krusio",
-                            "cru cio",
-                            "croozio",
-                            "cruciatus",
-                            "cruciatos"
+                            "cru cio"
                     ),
                     grammar(
                             "crucio",
@@ -78,9 +63,6 @@ public final class SpellDictionary {
                             "cio",
                             "tsio",
                             "cru cio",
-                            "croozio",
-                            "cruciatus",
-                            "cruciatos",
                             "\u043a\u0440\u0443\u0446\u0438\u043e",
                             "\u043a\u0440\u0443\u0447\u0438\u043e"
                     )),
@@ -94,9 +76,7 @@ public final class SpellDictionary {
                             "ekspelyarmus",
                             "expel yar mus",
                             "expeliar mus",
-                            "expelliarms",
-                            "expelli armus",
-                            "expellarmus"
+                            "expelli armus"
                     ),
                     grammar(
                             "expelliarmus",
@@ -109,7 +89,6 @@ public final class SpellDictionary {
                             "expel yar mus",
                             "expeliar mus",
                             "expelli armus",
-                            "expellarmus",
                             "\u044d\u043a\u0441\u043f\u0435\u043b\u043b\u0438\u0430\u0440\u043c\u0443\u0441",
                             "\u044d\u043a\u0441\u043f\u0435\u043b\u0438\u0430\u0440\u043c\u0443\u0441"
                     )),
@@ -142,9 +121,7 @@ public final class SpellDictionary {
                             "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u043e\u0440\u0430",
                             "sectumsempra",
                             "sektumsempra",
-                            "sek tum sem pra",
-                            "sectum sempra",
-                            "sectumsempa"
+                            "sek tum sem pra"
                     ),
                     grammar(
                             "sectumsempra",
@@ -154,8 +131,6 @@ public final class SpellDictionary {
                             "sem",
                             "pra",
                             "sek tum sem pra",
-                            "sectum sempra",
-                            "sectumsempa",
                             "\u0441\u0435\u043a\u0442\u0443\u043c\u0441\u0435\u043c\u043f\u0440\u0430"
                     ))
     );
