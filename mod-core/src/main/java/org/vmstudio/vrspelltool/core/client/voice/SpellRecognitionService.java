@@ -11,6 +11,7 @@ import javax.sound.sampled.DataLine;
 import javax.sound.sampled.TargetDataLine;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -23,10 +24,14 @@ public final class SpellRecognitionService {
     private static final double FULL_FORM_THRESHOLD = 0.70D;
     private static final double STEP_THRESHOLD = 0.62D;
     private static final long SEQUENCE_TIMEOUT_NANOS = 2_600_000_000L;
+    private static final long AVADA_FRAGMENT_WINDOW_NANOS = 2_200_000_000L;
+    private static final int AVADA_MAX_FRAGMENT_COUNT = 4;
+    private static final String AVADA_KEDAVRA_ID = "avada_kedavra";
 
     private final ConcurrentLinkedQueue<SpellRecognitionSnapshot> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final List<SequenceState> sequenceStates = new ArrayList<>();
+    private final ArrayDeque<RecognizedFragment> recentCompletedFragments = new ArrayDeque<>();
 
     private volatile String statusMessage = "Voice debug idle";
     private volatile double lastAudioLevel;
@@ -83,6 +88,7 @@ public final class SpellRecognitionService {
     public void stop() {
         running.set(false);
         sequenceStates.clear();
+        recentCompletedFragments.clear();
 
         if (microphone != null) {
             microphone.stop();
@@ -152,10 +158,22 @@ public final class SpellRecognitionService {
         if (sequenceMatch != null) {
             queue.offer(sequenceMatch);
             resetAllSequences();
+            recentCompletedFragments.clear();
             if (completed) {
                 spellRecognizer.reset();
             }
             return;
+        }
+
+        if (completed) {
+            SpellRecognitionSnapshot avadaFallback = tryAvadaFromRecentFragments(text);
+            if (avadaFallback != null) {
+                queue.offer(avadaFallback);
+                resetAllSequences();
+                recentCompletedFragments.clear();
+                spellRecognizer.reset();
+                return;
+            }
         }
 
         if (completed) {
@@ -228,18 +246,64 @@ public final class SpellRecognitionService {
         return null;
     }
 
+    private SpellRecognitionSnapshot tryAvadaFromRecentFragments(String text) {
+        rememberCompletedFragment(text);
+
+        SpellDictionary.SpellPattern avadaPattern = null;
+        for (SpellDictionary.SpellPattern pattern : SpellDictionary.spells()) {
+            if (AVADA_KEDAVRA_ID.equals(pattern.candidate().id())) {
+                avadaPattern = pattern;
+                break;
+            }
+        }
+
+        if (avadaPattern == null) {
+            return null;
+        }
+
+        List<String> fragments = recentCompletedFragmentTexts();
+        if (fragments.size() < 2) {
+            return null;
+        }
+
+        double bestScore = 0.0D;
+        for (int count = 2; count <= fragments.size(); count++) {
+            String combined = String.join(" ", fragments.subList(fragments.size() - count, fragments.size()));
+            double score = SpellDictionary.bestScore(combined, avadaPattern.fullForms());
+            if (score > bestScore) {
+                bestScore = score;
+            }
+        }
+
+        if (bestScore < FULL_FORM_THRESHOLD) {
+            return null;
+        }
+
+        return new SpellRecognitionSnapshot(
+                avadaPattern.candidate().displayName(),
+                false,
+                true,
+                avadaPattern.candidate(),
+                bestScore
+        );
+    }
+
     private double scoreSequenceStep(String heard, String expected) {
         List<String> variants = new ArrayList<>();
         variants.add(expected);
 
-        if ("kedavra".equals(expected)) {
+        if ("avada".equals(expected)) {
+            variants.add("ava da");
+        } else if ("kedavra".equals(expected)) {
             variants.add("kidavra");
             variants.add("ki davra");
             variants.add("davra");
+            variants.add("cadaver");
         } else if ("kidavra".equals(expected)) {
             variants.add("kedavra");
             variants.add("ki davra");
             variants.add("davra");
+            variants.add("cadaver");
         } else if ("cio".equals(expected) || "tsio".equals(expected) || "sio".equals(expected)) {
             variants.add("cio");
             variants.add("tsio");
@@ -264,6 +328,32 @@ public final class SpellRecognitionService {
     private void resetAllSequences() {
         for (SequenceState state : sequenceStates) {
             state.resetAll();
+        }
+    }
+
+    private void rememberCompletedFragment(String text) {
+        long now = System.nanoTime();
+        pruneCompletedFragments(now);
+        if (recentCompletedFragments.size() >= AVADA_MAX_FRAGMENT_COUNT) {
+            recentCompletedFragments.removeFirst();
+        }
+        recentCompletedFragments.addLast(new RecognizedFragment(text, now));
+    }
+
+    private List<String> recentCompletedFragmentTexts() {
+        long now = System.nanoTime();
+        pruneCompletedFragments(now);
+        List<String> fragments = new ArrayList<>();
+        for (RecognizedFragment fragment : recentCompletedFragments) {
+            fragments.add(fragment.text());
+        }
+        return fragments;
+    }
+
+    private void pruneCompletedFragments(long now) {
+        while (!recentCompletedFragments.isEmpty()
+                && now - recentCompletedFragments.peekFirst().timestampNanos() > AVADA_FRAGMENT_WINDOW_NANOS) {
+            recentCompletedFragments.removeFirst();
         }
     }
 
@@ -341,6 +431,9 @@ public final class SpellRecognitionService {
         }
 
         return Math.min(1.0D, Math.sqrt(sumSquares / samples) * 3.0D);
+    }
+
+    private record RecognizedFragment(String text, long timestampNanos) {
     }
 
     private static final class SequenceState {

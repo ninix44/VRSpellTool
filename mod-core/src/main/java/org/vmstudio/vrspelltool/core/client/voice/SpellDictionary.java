@@ -20,6 +20,10 @@ public final class SpellDictionary {
                             "avada kadavra",
                             "avada kedabra",
                             "avada kidavra",
+                            "ava da kedavra",
+                            "ava da kidavra",
+                            "a bada cadaver",
+                            "about a cadaver",
                             "avadakidavra",
                             "\u0430\u0432\u0430\u0434\u0430 \u043a\u0435\u0434\u0430\u0432\u0440\u0430",
                             "\u0430\u0432\u0430\u0434\u0430 \u043a\u0438\u0434\u0430\u0432\u0440\u0430"
@@ -30,7 +34,10 @@ public final class SpellDictionary {
                             List.of("avada", "kidavra"),
                             List.of("ava", "da", "ki", "davra"),
                             List.of("avada", "ki", "davra"),
-                            List.of("avada", "ki davra")
+                            List.of("avada", "ki davra"),
+                            List.of("ava", "da", "kidavra"),
+                            List.of("a", "bada", "cadaver"),
+                            List.of("about", "a", "cadaver")
                     )
             ),
             spell(
