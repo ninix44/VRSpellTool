@@ -27,6 +27,7 @@ public final class SpellRecognitionService {
     private static final long AVADA_FRAGMENT_WINDOW_NANOS = 2_200_000_000L;
     private static final int AVADA_MAX_FRAGMENT_COUNT = 4;
     private static final String AVADA_KEDAVRA_ID = "avada_kedavra";
+    private static final String EXPELLIARMUS_ID = "expelliarmus";
 
     private final ConcurrentLinkedQueue<SpellRecognitionSnapshot> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -174,6 +175,15 @@ public final class SpellRecognitionService {
                 spellRecognizer.reset();
                 return;
             }
+
+            SpellRecognitionSnapshot expelliarmusFallback = trySpellFromRecentFragments(text, EXPELLIARMUS_ID);
+            if (expelliarmusFallback != null) {
+                queue.offer(expelliarmusFallback);
+                resetAllSequences();
+                recentCompletedFragments.clear();
+                spellRecognizer.reset();
+                return;
+            }
         }
 
         if (completed) {
@@ -247,17 +257,14 @@ public final class SpellRecognitionService {
     }
 
     private SpellRecognitionSnapshot tryAvadaFromRecentFragments(String text) {
+        return trySpellFromRecentFragments(text, AVADA_KEDAVRA_ID);
+    }
+
+    private SpellRecognitionSnapshot trySpellFromRecentFragments(String text, String spellId) {
         rememberCompletedFragment(text);
 
-        SpellDictionary.SpellPattern avadaPattern = null;
-        for (SpellDictionary.SpellPattern pattern : SpellDictionary.spells()) {
-            if (AVADA_KEDAVRA_ID.equals(pattern.candidate().id())) {
-                avadaPattern = pattern;
-                break;
-            }
-        }
-
-        if (avadaPattern == null) {
+        SpellDictionary.SpellPattern pattern = findSpellPattern(spellId);
+        if (pattern == null) {
             return null;
         }
 
@@ -269,7 +276,7 @@ public final class SpellRecognitionService {
         double bestScore = 0.0D;
         for (int count = 2; count <= fragments.size(); count++) {
             String combined = String.join(" ", fragments.subList(fragments.size() - count, fragments.size()));
-            double score = SpellDictionary.bestScore(combined, avadaPattern.fullForms());
+            double score = SpellDictionary.bestScore(combined, pattern.fullForms());
             if (score > bestScore) {
                 bestScore = score;
             }
@@ -280,12 +287,21 @@ public final class SpellRecognitionService {
         }
 
         return new SpellRecognitionSnapshot(
-                avadaPattern.candidate().displayName(),
+                pattern.candidate().displayName(),
                 false,
                 true,
-                avadaPattern.candidate(),
+                pattern.candidate(),
                 bestScore
         );
+    }
+
+    private SpellDictionary.SpellPattern findSpellPattern(String spellId) {
+        for (SpellDictionary.SpellPattern pattern : SpellDictionary.spells()) {
+            if (spellId.equals(pattern.candidate().id())) {
+                return pattern;
+            }
+        }
+        return null;
     }
 
     private double scoreSequenceStep(String heard, String expected) {
@@ -304,19 +320,66 @@ public final class SpellRecognitionService {
             variants.add("ki davra");
             variants.add("davra");
             variants.add("cadaver");
+        } else if ("cru".equals(expected) || "kru".equals(expected)) {
+            variants.add("crew");
+            variants.add("croo");
+            variants.add("kru");
+            variants.add("cru");
+            variants.add("cre");
         } else if ("cio".equals(expected) || "tsio".equals(expected) || "sio".equals(expected)) {
             variants.add("cio");
             variants.add("tsio");
             variants.add("sio");
             variants.add("zio");
             variants.add("tso");
+            variants.add("see oh");
+            variants.add("shi o");
+            variants.add("shio");
+            variants.add("chio");
+            variants.add("she oh");
+            variants.add("see o");
+            variants.add("chi o");
+        } else if ("see".equals(expected)) {
+            variants.add("si");
+            variants.add("sii");
+            variants.add("shi");
+        } else if ("oh".equals(expected) || "o".equals(expected)) {
+            variants.add("o");
+            variants.add("oh");
+        } else if ("expel".equals(expected) || "expelli".equals(expected) || "expeli".equals(expected) || "ekspel".equals(expected)) {
+            variants.add("expel");
+            variants.add("expelli");
+            variants.add("expeli");
+            variants.add("ekspel");
+            variants.add("ex pel");
+            variants.add("spell");
+        } else if ("ex".equals(expected)) {
+            variants.add("ex");
+            variants.add("x");
+        } else if ("pel".equals(expected)) {
+            variants.add("pel");
+            variants.add("spell");
         } else if ("liar".equals(expected) || "yar".equals(expected)) {
             variants.add("liar");
             variants.add("yar");
             variants.add("li ar");
+            variants.add("lee ar");
+            variants.add("lar");
+        } else if ("the".equals(expected)) {
+            variants.add("the");
+            variants.add("da");
+        } else if ("ar".equals(expected)) {
+            variants.add("ar");
+            variants.add("are");
         } else if ("armus".equals(expected)) {
             variants.add("armus");
             variants.add("yar mus");
+            variants.add("ar mus");
+            variants.add("armis");
+        } else if ("mus".equals(expected)) {
+            variants.add("mus");
+            variants.add("mes");
+            variants.add("muse");
         } else if ("sempra".equals(expected)) {
             variants.add("sempra");
             variants.add("sem pra");

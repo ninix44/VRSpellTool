@@ -50,6 +50,14 @@ public final class SpellDictionary {
                             "krucio",
                             "krutso",
                             "krusio",
+                            "crew see oh",
+                            "crew cio",
+                            "cru cio",
+                            "kru cio",
+                            "cru shi o",
+                            "cru see oh",
+                            "kru see oh",
+                            "cru she oh",
                             "\u043a\u0440\u0443\u0446\u0438\u043e",
                             "\u043a\u0440\u0443\u0447\u0438\u043e"
                     ),
@@ -58,7 +66,11 @@ public final class SpellDictionary {
                             List.of("kru", "cio"),
                             List.of("cru", "tsio"),
                             List.of("kru", "tsio"),
-                            List.of("cru", "sio")
+                            List.of("cru", "sio"),
+                            List.of("crew", "see", "oh"),
+                            List.of("crew", "cio"),
+                            List.of("kru", "cio"),
+                            List.of("cru", "shi", "o")
                     )
             ),
             spell(
@@ -69,6 +81,11 @@ public final class SpellDictionary {
                             "expeliarmus",
                             "ekspelyarmus",
                             "expelli armus",
+                            "expel yar mus",
+                            "expeli ar mus",
+                            "ex pel liar mus",
+                            "spell the armus",
+                            "expel the armus",
                             "\u044d\u043a\u0441\u043f\u0435\u043b\u043b\u0438\u0430\u0440\u043c\u0443\u0441",
                             "\u044d\u043a\u0441\u043f\u0435\u043b\u044f\u0440\u043c\u0443\u0441"
                     ),
@@ -77,7 +94,11 @@ public final class SpellDictionary {
                             List.of("expelli", "armus"),
                             List.of("ekspel", "yar", "mus"),
                             List.of("expel", "yar", "mus"),
-                            List.of("expeli", "armus")
+                            List.of("expeli", "armus"),
+                            List.of("ex", "pel", "liar", "mus"),
+                            List.of("spell", "the", "armus"),
+                            List.of("expel", "the", "armus"),
+                            List.of("expel", "ar", "mus")
                     )
             ),
             spell(
