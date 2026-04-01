@@ -21,13 +21,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class SpellRecognitionService {
     private static final float SAMPLE_RATE = 16000.0F;
     private static final AudioFormat AUDIO_FORMAT = new AudioFormat(SAMPLE_RATE, 16, 1, true, false);
+    private static final int AUDIO_BUFFER_SIZE = 2048;
     private static final double FULL_FORM_THRESHOLD = 0.70D;
     private static final double STEP_THRESHOLD = 0.62D;
     private static final long SEQUENCE_TIMEOUT_NANOS = 2_600_000_000L;
-    private static final long AVADA_FRAGMENT_WINDOW_NANOS = 2_200_000_000L;
-    private static final int AVADA_MAX_FRAGMENT_COUNT = 4;
-    private static final String AVADA_KEDAVRA_ID = "avada_kedavra";
-    private static final String EXPELLIARMUS_ID = "expelliarmus";
+    private static final long FRAGMENT_WINDOW_NANOS = 2_200_000_000L;
+    private static final int MAX_FRAGMENT_COUNT = 4;
+    private static final int MAX_STEP_SUFFIX_WORDS = 3;
 
     private final ConcurrentLinkedQueue<SpellRecognitionSnapshot> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -111,7 +111,7 @@ public final class SpellRecognitionService {
     }
 
     private void captureLoop() {
-        byte[] buffer = new byte[4096];
+        byte[] buffer = new byte[AUDIO_BUFFER_SIZE];
 
         try {
             while (running.get()) {
@@ -149,9 +149,8 @@ public final class SpellRecognitionService {
         if (fullMatch != null) {
             queue.offer(fullMatch);
             resetAllSequences();
-            if (completed) {
-                spellRecognizer.reset();
-            }
+            recentCompletedFragments.clear();
+            spellRecognizer.reset();
             return;
         }
 
@@ -160,25 +159,14 @@ public final class SpellRecognitionService {
             queue.offer(sequenceMatch);
             resetAllSequences();
             recentCompletedFragments.clear();
-            if (completed) {
-                spellRecognizer.reset();
-            }
+            spellRecognizer.reset();
             return;
         }
 
         if (completed) {
-            SpellRecognitionSnapshot avadaFallback = tryAvadaFromRecentFragments(text);
-            if (avadaFallback != null) {
-                queue.offer(avadaFallback);
-                resetAllSequences();
-                recentCompletedFragments.clear();
-                spellRecognizer.reset();
-                return;
-            }
-
-            SpellRecognitionSnapshot expelliarmusFallback = trySpellFromRecentFragments(text, EXPELLIARMUS_ID);
-            if (expelliarmusFallback != null) {
-                queue.offer(expelliarmusFallback);
+            SpellRecognitionSnapshot fragmentMatch = tryBestSpellFromRecentFragments(text);
+            if (fragmentMatch != null) {
+                queue.offer(fragmentMatch);
                 resetAllSequences();
                 recentCompletedFragments.clear();
                 spellRecognizer.reset();
@@ -256,52 +244,38 @@ public final class SpellRecognitionService {
         return null;
     }
 
-    private SpellRecognitionSnapshot tryAvadaFromRecentFragments(String text) {
-        return trySpellFromRecentFragments(text, AVADA_KEDAVRA_ID);
-    }
-
-    private SpellRecognitionSnapshot trySpellFromRecentFragments(String text, String spellId) {
+    private SpellRecognitionSnapshot tryBestSpellFromRecentFragments(String text) {
         rememberCompletedFragment(text);
-
-        SpellDictionary.SpellPattern pattern = findSpellPattern(spellId);
-        if (pattern == null) {
-            return null;
-        }
 
         List<String> fragments = recentCompletedFragmentTexts();
         if (fragments.size() < 2) {
             return null;
         }
 
+        SpellDictionary.SpellPattern bestPattern = null;
         double bestScore = 0.0D;
-        for (int count = 2; count <= fragments.size(); count++) {
-            String combined = String.join(" ", fragments.subList(fragments.size() - count, fragments.size()));
-            double score = SpellDictionary.bestScore(combined, pattern.fullForms());
-            if (score > bestScore) {
-                bestScore = score;
+        for (SpellDictionary.SpellPattern pattern : SpellDictionary.spells()) {
+            for (int count = 2; count <= fragments.size(); count++) {
+                String combined = String.join(" ", fragments.subList(fragments.size() - count, fragments.size()));
+                double score = SpellDictionary.bestScore(combined, pattern.fullForms());
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPattern = pattern;
+                }
             }
         }
 
-        if (bestScore < FULL_FORM_THRESHOLD) {
+        if (bestPattern == null || bestScore < FULL_FORM_THRESHOLD) {
             return null;
         }
 
         return new SpellRecognitionSnapshot(
-                pattern.candidate().displayName(),
+                bestPattern.candidate().displayName(),
                 false,
                 true,
-                pattern.candidate(),
+                bestPattern.candidate(),
                 bestScore
         );
-    }
-
-    private SpellDictionary.SpellPattern findSpellPattern(String spellId) {
-        for (SpellDictionary.SpellPattern pattern : SpellDictionary.spells()) {
-            if (spellId.equals(pattern.candidate().id())) {
-                return pattern;
-            }
-        }
-        return null;
     }
 
     private double scoreSequenceStep(String heard, String expected) {
@@ -326,6 +300,22 @@ public final class SpellRecognitionService {
             variants.add("kru");
             variants.add("cru");
             variants.add("cre");
+        } else if ("lu".equals(expected) || "lyu".equals(expected) || "lou".equals(expected)) {
+            variants.add("lu");
+            variants.add("lyu");
+            variants.add("lou");
+            variants.add("loo");
+            variants.add("лю");
+        } else if ("mos".equals(expected) || "moss".equals(expected)) {
+            variants.add("mos");
+            variants.add("moss");
+            variants.add("moz");
+            variants.add("mass");
+            variants.add("мосс");
+            variants.add("мос");
+        } else if ("blue".equals(expected)) {
+            variants.add("blue");
+            variants.add("blu");
         } else if ("cio".equals(expected) || "tsio".equals(expected) || "sio".equals(expected)) {
             variants.add("cio");
             variants.add("tsio");
@@ -385,7 +375,12 @@ public final class SpellRecognitionService {
             variants.add("sem pra");
         }
 
-        return SpellDictionary.bestScore(heard, variants);
+        double bestScore = SpellDictionary.bestScore(heard, variants);
+        List<String> suffixes = extractSuffixCandidates(heard);
+        for (String suffix : suffixes) {
+            bestScore = Math.max(bestScore, SpellDictionary.bestScore(suffix, variants));
+        }
+        return bestScore;
     }
 
     private void resetAllSequences() {
@@ -397,7 +392,7 @@ public final class SpellRecognitionService {
     private void rememberCompletedFragment(String text) {
         long now = System.nanoTime();
         pruneCompletedFragments(now);
-        if (recentCompletedFragments.size() >= AVADA_MAX_FRAGMENT_COUNT) {
+        if (recentCompletedFragments.size() >= MAX_FRAGMENT_COUNT) {
             recentCompletedFragments.removeFirst();
         }
         recentCompletedFragments.addLast(new RecognizedFragment(text, now));
@@ -415,9 +410,24 @@ public final class SpellRecognitionService {
 
     private void pruneCompletedFragments(long now) {
         while (!recentCompletedFragments.isEmpty()
-                && now - recentCompletedFragments.peekFirst().timestampNanos() > AVADA_FRAGMENT_WINDOW_NANOS) {
+                && now - recentCompletedFragments.peekFirst().timestampNanos() > FRAGMENT_WINDOW_NANOS) {
             recentCompletedFragments.removeFirst();
         }
+    }
+
+    private List<String> extractSuffixCandidates(String text) {
+        List<String> suffixes = new ArrayList<>();
+        String[] words = text.split(" ");
+        if (words.length <= 1) {
+            return suffixes;
+        }
+
+        int maxWords = Math.min(words.length, MAX_STEP_SUFFIX_WORDS);
+        for (int count = 1; count <= maxWords; count++) {
+            int start = words.length - count;
+            suffixes.add(String.join(" ", java.util.Arrays.copyOfRange(words, start, words.length)));
+        }
+        return suffixes;
     }
 
     private static Path resolveModelPath(Path gameDirectory) {

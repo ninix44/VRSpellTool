@@ -107,13 +107,20 @@ public final class SpellDictionary {
                     List.of(
                             "lumos",
                             "lumoss",
+                            "lumas",
+                            "loomos",
                             "lyumos",
+                            "lu mos",
+                            "lou moss",
+                            "blue moss",
                             "\u043b\u044e\u043c\u043e\u0441",
                             "\u043b\u044e\u043c\u0443\u0441"
                     ),
                     List.of(
                             List.of("lu", "mos"),
                             List.of("lyu", "mos"),
+                            List.of("lou", "moss"),
+                            List.of("blue", "moss"),
                             List.of("\u043b\u044e", "\u043c\u043e\u0441")
                     )
             ),

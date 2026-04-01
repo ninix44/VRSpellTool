@@ -21,7 +21,7 @@ public class TaskSpellVoiceDebug extends VisorTask {
     public static final String ID = "spell_voice_debug";
 
     private static final int STATUS_MESSAGE_INTERVAL_TICKS = 100;
-    private static final int SPELL_REPEAT_COOLDOWN_TICKS = 32;
+    private static final int SPELL_REPEAT_COOLDOWN_TICKS = 2;
 
     private final SpellRecognitionService recognitionService = new SpellRecognitionService();
     private int taskTicks;
