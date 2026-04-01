@@ -300,6 +300,7 @@ public final class SpellRecognitionService {
             variants.add("kru");
             variants.add("cru");
             variants.add("cre");
+            variants.add("cryu");
         } else if ("lu".equals(expected) || "lyu".equals(expected) || "lou".equals(expected)) {
             variants.add("lu");
             variants.add("lyu");
@@ -329,10 +330,28 @@ public final class SpellRecognitionService {
             variants.add("she oh");
             variants.add("see o");
             variants.add("chi o");
+            variants.add("seo");
+            variants.add("zee oh");
+            variants.add("zio");
+            variants.add("shi");
+            variants.add("chio");
+            variants.add("tchio");
+            variants.add("cheeo");
+        } else if ("chio".equals(expected)) {
+            variants.add("chio");
+            variants.add("chi o");
+            variants.add("cio");
+            variants.add("shio");
+            variants.add("tchio");
+        } else if ("tso".equals(expected)) {
+            variants.add("tso");
+            variants.add("zo");
+            variants.add("so");
         } else if ("see".equals(expected)) {
             variants.add("si");
             variants.add("sii");
             variants.add("shi");
+            variants.add("see");
         } else if ("oh".equals(expected) || "o".equals(expected)) {
             variants.add("o");
             variants.add("oh");
