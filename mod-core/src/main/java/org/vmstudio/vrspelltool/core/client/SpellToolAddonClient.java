@@ -1,7 +1,10 @@
 package org.vmstudio.vrspelltool.core.client;
 
 import org.vmstudio.visor.api.VisorAPI;
+import org.vmstudio.visor.api.ModLoader;
+import org.vmstudio.visor.api.client.render.RenderPipelineStage;
 import org.vmstudio.visor.api.common.addon.VisorAddon;
+import org.vmstudio.vrspelltool.core.client.render.LumosRenderer;
 import org.vmstudio.vrspelltool.core.client.voice.SpellDictionary;
 import org.vmstudio.vrspelltool.core.common.VisorSpellTool;
 import net.minecraft.network.chat.Component;
@@ -12,6 +15,7 @@ public class SpellToolAddonClient implements VisorAddon {
     @Override
     public void onAddonLoad() {
         SpellDictionary.initialize();
+        ModLoader.get().addToRenderPipeline(RenderPipelineStage.AFTER_WORLD, LumosRenderer::render);
         VisorAPI.addonManager().getRegistries()
                 .overlays()
                 .registerComponents(java.util.List.of());

@@ -6,6 +6,13 @@ import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LightBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import java.util.ArrayDeque;
@@ -19,6 +26,7 @@ import org.vmstudio.visor.api.client.tasks.VisorTask;
 import org.vmstudio.visor.api.common.HandType;
 import org.vmstudio.visor.api.common.addon.VisorAddon;
 import org.vmstudio.visor.api.common.player.VRPose;
+import org.vmstudio.vrspelltool.core.client.render.LumosState;
 import org.vmstudio.vrspelltool.core.client.voice.SpellDictionary;
 import org.vmstudio.vrspelltool.core.client.voice.SpellRecognitionService;
 import org.vmstudio.vrspelltool.core.client.voice.SpellRecognitionSnapshot;
@@ -41,6 +49,7 @@ public class TaskSpellVoiceDebug extends VisorTask {
     private static final double MOTION_SIDE = 0.045D;
     private static final double PALM_DISTANCE_MAX = 0.14D;
     private static final float PALM_FACING_DOT_MAX = -0.45F;
+    private static final Vector3f WAND_TIP_OFFSET = new Vector3f(0.0F, 0.43F, -0.25F);
 
     private final SpellRecognitionService recognitionService = new SpellRecognitionService();
     private int taskTicks;
@@ -53,10 +62,12 @@ public class TaskSpellVoiceDebug extends VisorTask {
     private @Nullable PendingSpell pendingSpell;
     private @Nullable SpellArmSession spellArmSession;
     private boolean mageMode;
+    private boolean lumosActive;
     private int palmsTogetherTicks;
     private int mageToggleCooldownTicks;
     private boolean mageFeedbackTriggered;
     private boolean mageGestureLatched;
+    private @Nullable BlockPos lumosLightPos;
     private final ArrayDeque<HandSample> handSamples = new ArrayDeque<>();
     private final ArrayDeque<GestureEvent> recentGestureEvents = new ArrayDeque<>();
 
@@ -75,6 +86,7 @@ public class TaskSpellVoiceDebug extends VisorTask {
         }
         taskTicks++;
         tickMageState(player);
+        tickLumos(player);
 
         recognitionService.ensureRunning(minecraft.gameDirectory.toPath());
         sampleHandPose();
@@ -164,6 +176,10 @@ public class TaskSpellVoiceDebug extends VisorTask {
     }
 
     private void castSpell(LocalPlayer player, SpellRecognitionSnapshot snapshot) {
+        if ("lumos".equals(snapshot.candidate().id())) {
+            toggleLumos(player, snapshot);
+            return;
+        }
         spawnSpellParticles(player, snapshot);
         triggerSpellHaptics(snapshot);
         lastMatchedSpellId = snapshot.candidate().id();
@@ -172,6 +188,25 @@ public class TaskSpellVoiceDebug extends VisorTask {
         pendingSpell = null;
         spellArmSession = null;
         sendChat(player, "[CAST " + Math.round(snapshot.score() * 100.0D) + "%] \"" + snapshot.text() + "\" -> " + snapshot.candidate().displayName());
+    }
+
+    private void toggleLumos(LocalPlayer player, SpellRecognitionSnapshot snapshot) {
+        lumosActive = !lumosActive;
+        triggerSpellHaptics(snapshot);
+        lastMatchedSpellId = snapshot.candidate().id();
+        lastMatchedSpellText = snapshot.text();
+        lastMatchedSpellTick = taskTicks;
+        pendingSpell = null;
+        spellArmSession = null;
+
+        if (lumosActive) {
+            spawnLumosToggleBurst(player);
+            LumosState.setActive(true);
+            sendChat(player, "[CAST " + Math.round(snapshot.score() * 100.0D) + "%] \"" + snapshot.text() + "\" -> Lumos ON");
+        } else {
+            clearLumosEffects(player);
+            sendChat(player, "[CAST " + Math.round(snapshot.score() * 100.0D) + "%] \"" + snapshot.text() + "\" -> Lumos OFF");
+        }
     }
 
     private void tickMageState(LocalPlayer player) {
@@ -260,6 +295,25 @@ public class TaskSpellVoiceDebug extends VisorTask {
             );
         }
         spawnRandomCloud(player, origin, ParticleTypes.ENCHANT, 4, 0.03D, 0.01D);
+    }
+
+    private void tickLumos(LocalPlayer player) {
+        if (!lumosActive) {
+            return;
+        }
+
+        if (!player.getMainHandItem().is(Items.STICK)) {
+            clearLumosEffects(player);
+            lumosActive = false;
+            sendChat(player, "[LUMOS] Stick not found in main hand, light disabled");
+            return;
+        }
+
+        Vec3 tip = getStickTip(VisorAPI.client().getVRLocalPlayer().getPoseData(PlayerPoseType.RENDER).getMainHand());
+        LumosState.setActive(true);
+        LumosState.setTip(tip);
+        spawnLumosSustainParticles(player, tip);
+        updateLumosBlockLight(player, tip);
     }
 
     private void sampleHandPose() {
@@ -431,6 +485,44 @@ public class TaskSpellVoiceDebug extends VisorTask {
         );
     }
 
+    private void spawnLumosToggleBurst(LocalPlayer player) {
+        Vec3 tip = getStickTip(VisorAPI.client().getVRLocalPlayer().getPoseData(PlayerPoseType.RENDER).getMainHand());
+        LumosState.setTip(tip);
+        Vector3f tipVec = tip.toVector3f();
+        spawnBurstRing(player, tipVec, ParticleTypes.END_ROD, 8, 0.10D, 0.02D);
+        player.level().addParticle(
+                new DustParticleOptions(new Vector3f(1.0F, 0.96F, 0.72F), 1.55F),
+                tip.x, tip.y, tip.z,
+                0.0D, 0.0D, 0.0D
+        );
+    }
+
+    private void spawnLumosSustainParticles(LocalPlayer player, Vec3 tip) {
+        if (taskTicks % 3 == 0) {
+            player.level().addParticle(
+                    new DustParticleOptions(new Vector3f(1.0F, 0.98F, 0.78F), 1.15F),
+                    tip.x,
+                    tip.y,
+                    tip.z,
+                    0.0D,
+                    0.0D,
+                    0.0D
+            );
+        }
+
+        if (taskTicks % 10 == 0) {
+            player.level().addParticle(
+                    ParticleTypes.END_ROD,
+                    tip.x,
+                    tip.y,
+                    tip.z,
+                    0.0D,
+                    0.0D,
+                    0.0D
+            );
+        }
+    }
+
     private void spawnElenSilaLumeParticles(LocalPlayer player, Vector3fc origin) {
         spawnBurstRing(player, origin, ParticleTypes.END_ROD, 20, 0.34D, 0.11D);
         spawnRandomCloud(player, origin, ParticleTypes.ENCHANT, 14, 0.07D, 0.03D);
@@ -457,6 +549,82 @@ public class TaskSpellVoiceDebug extends VisorTask {
     private void spawnGenericParticles(LocalPlayer player, Vector3fc origin) {
         spawnBurstRing(player, origin, ParticleTypes.ENCHANT, 12, 0.30D, 0.08D);
         spawnRandomCloud(player, origin, ParticleTypes.END_ROD, 6, 0.04D, 0.015D);
+    }
+
+    private Vec3 getStickTip(VRPose handPose) {
+        Vector3f tipJoml = handPose.getCustomVector(new Vector3f(WAND_TIP_OFFSET)).add(handPose.getPosition());
+        return new Vec3(tipJoml.x(), tipJoml.y(), tipJoml.z());
+    }
+
+    private void updateLumosBlockLight(LocalPlayer player, Vec3 tip) {
+        ServerLevel serverLevel = getLocalServerLevel(player);
+        if (serverLevel == null) {
+            return;
+        }
+
+        BlockPos targetPos = findLumosLightPos(serverLevel, tip);
+        if (targetPos == null) {
+            removeLumosBlockLight(serverLevel);
+            return;
+        }
+        if (targetPos.equals(lumosLightPos)) {
+            return;
+        }
+
+        removeLumosBlockLight(serverLevel);
+
+        BlockState lightState = Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15);
+        serverLevel.setBlock(targetPos, lightState, 3);
+        lumosLightPos = targetPos.immutable();
+    }
+
+    private @Nullable BlockPos findLumosLightPos(ServerLevel serverLevel, Vec3 tip) {
+        BlockPos basePos = BlockPos.containing(tip);
+        BlockPos[] candidates = new BlockPos[] {
+                basePos,
+                basePos.above(),
+                basePos.below(),
+                basePos.north(),
+                basePos.south(),
+                basePos.east(),
+                basePos.west()
+        };
+
+        for (BlockPos candidate : candidates) {
+            BlockState state = serverLevel.getBlockState(candidate);
+            if (state.isAir() || state.is(Blocks.LIGHT)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private @Nullable ServerLevel getLocalServerLevel(LocalPlayer player) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!minecraft.isLocalServer() || minecraft.getSingleplayerServer() == null) {
+            return null;
+        }
+        return minecraft.getSingleplayerServer().getLevel(player.level().dimension());
+    }
+
+    private void clearLumosEffects(LocalPlayer player) {
+        ServerLevel serverLevel = getLocalServerLevel(player);
+        if (serverLevel != null) {
+            removeLumosBlockLight(serverLevel);
+        }
+        LumosState.clear();
+    }
+
+    private void removeLumosBlockLight(ServerLevel serverLevel) {
+        if (lumosLightPos == null) {
+            return;
+        }
+
+        BlockState state = serverLevel.getBlockState(lumosLightPos);
+        if (state.is(Blocks.LIGHT)) {
+            serverLevel.setBlock(lumosLightPos, Blocks.AIR.defaultBlockState(), 3);
+        }
+        lumosLightPos = null;
     }
 
     private void spawnBurstRing(LocalPlayer player,
@@ -521,10 +689,15 @@ public class TaskSpellVoiceDebug extends VisorTask {
         pendingSpell = null;
         spellArmSession = null;
         mageMode = false;
+        lumosActive = false;
         palmsTogetherTicks = 0;
         mageToggleCooldownTicks = 0;
         mageFeedbackTriggered = false;
         mageGestureLatched = false;
+        lumosLightPos = null;
+        if (player != null) {
+            clearLumosEffects(player);
+        }
         handSamples.clear();
         recentGestureEvents.clear();
     }
