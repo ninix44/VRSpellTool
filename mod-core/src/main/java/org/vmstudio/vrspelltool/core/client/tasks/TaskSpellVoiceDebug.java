@@ -5,13 +5,13 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.network.chat.Component;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LightBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -312,7 +312,7 @@ public class TaskSpellVoiceDebug extends VisorTask {
         Vec3 tip = getStickTip(VisorAPI.client().getVRLocalPlayer().getPoseData(PlayerPoseType.RENDER).getMainHand());
         LumosState.setActive(true);
         LumosState.setTip(tip);
-        spawnLumosSustainParticles(player, tip);
+        syncLumosVisual(tip);
         updateLumosBlockLight(player, tip);
     }
 
@@ -488,39 +488,16 @@ public class TaskSpellVoiceDebug extends VisorTask {
     private void spawnLumosToggleBurst(LocalPlayer player) {
         Vec3 tip = getStickTip(VisorAPI.client().getVRLocalPlayer().getPoseData(PlayerPoseType.RENDER).getMainHand());
         LumosState.setTip(tip);
-        Vector3f tipVec = tip.toVector3f();
-        spawnBurstRing(player, tipVec, ParticleTypes.END_ROD, 8, 0.10D, 0.02D);
-        player.level().addParticle(
-                new DustParticleOptions(new Vector3f(1.0F, 0.96F, 0.72F), 1.55F),
-                tip.x, tip.y, tip.z,
-                0.0D, 0.0D, 0.0D
-        );
+        syncLumosVisual(tip);
     }
 
     private void spawnLumosSustainParticles(LocalPlayer player, Vec3 tip) {
-        if (taskTicks % 3 == 0) {
-            player.level().addParticle(
-                    new DustParticleOptions(new Vector3f(1.0F, 0.98F, 0.78F), 1.15F),
-                    tip.x,
-                    tip.y,
-                    tip.z,
-                    0.0D,
-                    0.0D,
-                    0.0D
-            );
-        }
+        syncLumosVisual(tip);
+    }
 
-        if (taskTicks % 10 == 0) {
-            player.level().addParticle(
-                    ParticleTypes.END_ROD,
-                    tip.x,
-                    tip.y,
-                    tip.z,
-                    0.0D,
-                    0.0D,
-                    0.0D
-            );
-        }
+    private void syncLumosVisual(Vec3 tip) {
+        LumosState.setActive(true);
+        LumosState.setTip(tip);
     }
 
     private void spawnElenSilaLumeParticles(LocalPlayer player, Vector3fc origin) {
@@ -572,7 +549,6 @@ public class TaskSpellVoiceDebug extends VisorTask {
         }
 
         removeLumosBlockLight(serverLevel);
-
         BlockState lightState = Blocks.LIGHT.defaultBlockState().setValue(LightBlock.LEVEL, 15);
         serverLevel.setBlock(targetPos, lightState, 3);
         lumosLightPos = targetPos.immutable();
@@ -582,8 +558,8 @@ public class TaskSpellVoiceDebug extends VisorTask {
         BlockPos basePos = BlockPos.containing(tip);
         BlockPos[] candidates = new BlockPos[] {
                 basePos,
-                basePos.above(),
                 basePos.below(),
+                basePos.above(),
                 basePos.north(),
                 basePos.south(),
                 basePos.east(),
