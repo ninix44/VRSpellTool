@@ -1,0 +1,236 @@
+{
+  "spells": [
+    {
+      "id": "avada_kedavra",
+      "displayName": "Avada Kedavra",
+      "fullForms": [
+        "avada kedavra",
+        "avada kadavra",
+        "avada kedabra",
+        "avada kidavra",
+        "ava da kedavra",
+        "ava da kidavra",
+        "a bada cadaver",
+        "about a cadaver",
+        "avadakidavra"
+      ],
+      "sequences": [
+        ["avada", "kedavra"],
+        ["ava", "da", "kedavra"],
+        ["avada", "kidavra"],
+        ["ava", "da", "ki", "davra"],
+        ["avada", "ki", "davra"],
+        ["avada", "ki davra"],
+        ["ava", "da", "kidavra"],
+        ["a", "bada", "cadaver"],
+        ["about", "a", "cadaver"]
+      ],
+      "stepVariants": {
+        "avada": ["ava da"],
+        "kedavra": ["kidavra", "ki davra", "davra", "cadaver"],
+        "kidavra": ["kedavra", "ki davra", "davra", "cadaver"]
+      },
+      "startKeywords": ["avada", "ava da", "ava"],
+      "allowedGestures": ["FORWARD", "SIDE", "UP"],
+      "particleStyle": "avada_kedavra",
+      "hapticStrength": 0.18
+    },
+    {
+      "id": "crucio",
+      "displayName": "Crucio",
+      "fullForms": [
+        "crucio",
+        "crusio",
+        "crushio",
+        "krucio",
+        "krutso",
+        "krusio",
+        "crew see oh",
+        "crew cio",
+        "cru cio",
+        "kru cio",
+        "cru shi o",
+        "cru see oh",
+        "kru see oh",
+        "cru she oh",
+        "crew shio",
+        "kru shio",
+        "cru zio",
+        "crew seo",
+        "kru seo",
+        "kru chio",
+        "cru chio",
+        "kru tso",
+        "cru tso",
+        "kru sio",
+        "kru zio"
+      ],
+      "sequences": [
+        ["cru", "cio"],
+        ["kru", "cio"],
+        ["cru", "tsio"],
+        ["kru", "tsio"],
+        ["cru", "sio"],
+        ["crew", "see", "oh"],
+        ["crew", "cio"],
+        ["kru", "cio"],
+        ["cru", "shi", "o"],
+        ["crew", "shio"],
+        ["kru", "shio"],
+        ["cru", "zio"],
+        ["crew", "seo"],
+        ["kru", "chio"],
+        ["cru", "chio"],
+        ["kru", "tso"],
+        ["cru", "tso"],
+        ["kru", "sio"],
+        ["kru", "zio"]
+      ],
+      "stepVariants": {
+        "cru": ["crew", "croo", "kru", "cre", "cryu"],
+        "kru": ["crew", "croo", "cru", "cre", "cryu"],
+        "cio": ["tsio", "sio", "zio", "tso", "see oh", "shi o", "shio", "chio", "she oh", "see o", "chi o", "seo", "zee oh", "shi", "tchio", "cheeo"],
+        "tsio": ["cio", "sio", "zio", "tso", "see oh", "shi o", "shio", "chio", "she oh", "see o", "chi o", "seo", "zee oh", "shi", "tchio", "cheeo"],
+        "sio": ["cio", "tsio", "zio", "tso", "see oh", "shi o", "shio", "chio", "she oh", "see o", "chi o", "seo", "zee oh", "shi", "tchio", "cheeo"],
+        "chio": ["chi o", "cio", "shio", "tchio"],
+        "tso": ["zo", "so"],
+        "see": ["si", "sii", "shi"],
+        "oh": ["o"],
+        "o": ["oh"]
+      },
+      "startKeywords": ["cru", "kru", "crew"],
+      "allowedGestures": ["FORWARD", "SIDE", "UP"],
+      "particleStyle": "crucio",
+      "hapticStrength": 0.15
+    },
+    {
+      "id": "expelliarmus",
+      "displayName": "Expelliarmus",
+      "fullForms": [
+        "expelliarmus",
+        "expeliarmus",
+        "ekspelyarmus",
+        "expelli armus",
+        "expel yar mus",
+        "expeli ar mus",
+        "ex pel liar mus",
+        "spell the armus",
+        "expel the armus"
+      ],
+      "sequences": [
+        ["expel", "liar", "mus"],
+        ["expelli", "armus"],
+        ["ekspel", "yar", "mus"],
+        ["expel", "yar", "mus"],
+        ["expeli", "armus"],
+        ["ex", "pel", "liar", "mus"],
+        ["spell", "the", "armus"],
+        ["expel", "the", "armus"],
+        ["expel", "ar", "mus"]
+      ],
+      "stepVariants": {
+        "expel": ["expelli", "expeli", "ekspel", "ex pel", "spell"],
+        "expelli": ["expel", "expeli", "ekspel", "ex pel", "spell"],
+        "expeli": ["expel", "expelli", "ekspel", "ex pel", "spell"],
+        "ekspel": ["expel", "expelli", "expeli", "ex pel", "spell"],
+        "ex": ["x"],
+        "pel": ["spell"],
+        "liar": ["yar", "li ar", "lee ar", "lar"],
+        "yar": ["liar", "li ar", "lee ar", "lar"],
+        "the": ["da"],
+        "ar": ["are"],
+        "armus": ["yar mus", "ar mus", "armis"],
+        "mus": ["mes", "muse"]
+      },
+      "startKeywords": ["expel", "expelli", "expeli", "ekspel", "spell"],
+      "allowedGestures": ["FORWARD", "UP", "SIDE"],
+      "particleStyle": "expelliarmus",
+      "hapticStrength": 0.16
+    },
+    {
+      "id": "lumos",
+      "displayName": "Lumos",
+      "fullForms": [
+        "lumos",
+        "lumoss",
+        "lumas",
+        "loomos",
+        "lyumos",
+        "lu mos",
+        "lou moss",
+        "blue moss"
+      ],
+      "sequences": [
+        ["lu", "mos"],
+        ["lyu", "mos"],
+        ["lou", "moss"],
+        ["blue", "moss"]
+      ],
+      "stepVariants": {
+        "lu": ["lyu", "lou", "loo"],
+        "lyu": ["lu", "lou", "loo"],
+        "lou": ["lu", "lyu", "loo"],
+        "mos": ["moss", "moz", "mass"],
+        "moss": ["mos", "moz", "mass"],
+        "blue": ["blu"]
+      },
+      "startKeywords": ["lu", "lou", "lyu", "lumo", "lumo s"],
+      "allowedGestures": ["UP", "FORWARD", "SIDE"],
+      "particleStyle": "lumos",
+      "hapticStrength": 0.12
+    },
+    {
+      "id": "elen_sila_lume",
+      "displayName": "Elen Sila Lume",
+      "fullForms": [
+        "elen sila lume",
+        "elen sila lumen",
+        "elen sila lumenn",
+        "elen seela lume",
+        "ellen sila lume",
+        "elen syla lume",
+        "ellen seela lumen"
+      ],
+      "sequences": [
+        ["elen", "sila", "lume"],
+        ["elen", "seela", "lume"],
+        ["elen", "sila", "lumen"],
+        ["ellen", "sila", "lume"],
+        ["elen", "syla", "lume"]
+      ],
+      "stepVariants": {
+        "elen": ["ellen", "alan", "elan"],
+        "ellen": ["elen", "alan", "elan"],
+        "sila": ["seela", "syla", "sela", "see la"],
+        "seela": ["sila", "syla", "sela", "see la"],
+        "syla": ["sila", "seela", "sela", "see la"],
+        "lume": ["lumen", "loom", "loomay", "loo me"],
+        "lumen": ["lume", "loom", "loomay", "loo me"]
+      },
+      "startKeywords": ["elen", "ellen", "sila", "seela", "syla", "lume", "lumen"],
+      "allowedGestures": ["UP", "FORWARD", "SIDE"],
+      "particleStyle": "elen_sila_lume",
+      "hapticStrength": 0.14
+    },
+    {
+      "id": "sectumsempra",
+      "displayName": "Sectumsempra",
+      "fullForms": [
+        "sectumsempra",
+        "sektumsempra"
+      ],
+      "sequences": [
+        ["sectum", "sempra"],
+        ["sektum", "sempra"],
+        ["sek", "tum", "sem", "pra"]
+      ],
+      "stepVariants": {
+        "sempra": ["sem pra"]
+      },
+      "startKeywords": ["sect", "sek", "sectum", "sektum"],
+      "allowedGestures": ["SIDE", "FORWARD", "UP"],
+      "particleStyle": "sectumsempra",
+      "hapticStrength": 0.16
+    }
+  ]
+}

@@ -40,10 +40,16 @@ public final class SpellRecognitionService {
     private TargetDataLine microphone;
     private Model model;
     private Recognizer spellRecognizer;
+    private String loadedGrammarJson = "";
 
     public void ensureRunning(Path gameDirectory) {
+        SpellDictionary.reloadIfChanged();
+        String grammarJson = SpellDictionary.grammarJson();
         if (running.get()) {
-            return;
+            if (grammarJson.equals(loadedGrammarJson)) {
+                return;
+            }
+            stop();
         }
 
         Path modelPath = resolveModelPath(gameDirectory);
@@ -55,7 +61,8 @@ public final class SpellRecognitionService {
         try {
             LibVosk.setLogLevel(LogLevel.WARNINGS);
             model = new Model(modelPath.toString());
-            spellRecognizer = new Recognizer(model, SAMPLE_RATE, SpellDictionary.grammarJson());
+            spellRecognizer = new Recognizer(model, SAMPLE_RATE, grammarJson);
+            loadedGrammarJson = grammarJson;
 
             sequenceStates.clear();
             for (SpellDictionary.SpellPattern pattern : SpellDictionary.spells()) {
@@ -108,6 +115,7 @@ public final class SpellRecognitionService {
         }
 
         workerThread = null;
+        loadedGrammarJson = "";
     }
 
     private void captureLoop() {
@@ -216,7 +224,7 @@ public final class SpellRecognitionService {
                     continue;
                 }
 
-                double score = scoreSequenceStep(text, sequence.get(matchedSteps));
+                double score = scoreSequenceStep(state.pattern, text, sequence.get(matchedSteps));
                 if (score >= STEP_THRESHOLD) {
                     int nextStep = matchedSteps + 1;
                     state.update(sequence, nextStep, now);
@@ -233,7 +241,7 @@ public final class SpellRecognitionService {
                 } else if (matchedSteps == 0) {
                 } else {
                     state.reset(sequence);
-                    double restartScore = scoreSequenceStep(text, sequence.get(0));
+                    double restartScore = scoreSequenceStep(state.pattern, text, sequence.get(0));
                     if (restartScore >= STEP_THRESHOLD) {
                         state.update(sequence, 1, now);
                     }
@@ -278,9 +286,10 @@ public final class SpellRecognitionService {
         );
     }
 
-    private double scoreSequenceStep(String heard, String expected) {
+    private double scoreSequenceStep(SpellDictionary.SpellPattern pattern, String heard, String expected) {
         List<String> variants = new ArrayList<>();
         variants.add(expected);
+        variants.addAll(pattern.stepVariants().getOrDefault(expected, List.of()));
 
         if ("avada".equals(expected)) {
             variants.add("ava da");

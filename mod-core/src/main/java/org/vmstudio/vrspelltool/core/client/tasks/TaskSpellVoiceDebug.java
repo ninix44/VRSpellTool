@@ -19,6 +19,7 @@ import org.vmstudio.visor.api.client.tasks.VisorTask;
 import org.vmstudio.visor.api.common.HandType;
 import org.vmstudio.visor.api.common.addon.VisorAddon;
 import org.vmstudio.visor.api.common.player.VRPose;
+import org.vmstudio.vrspelltool.core.client.voice.SpellDictionary;
 import org.vmstudio.vrspelltool.core.client.voice.SpellRecognitionService;
 import org.vmstudio.vrspelltool.core.client.voice.SpellRecognitionSnapshot;
 
@@ -30,11 +31,16 @@ public class TaskSpellVoiceDebug extends VisorTask {
     private static final int SPELL_PENDING_TIMEOUT_TICKS = 34;
     private static final int SPELL_ARM_TIMEOUT_TICKS = 60;
     private static final int GESTURE_MEMORY_TICKS = 20;
+    private static final int MAGE_RITUAL_FEEDBACK_TICKS = 10;
+    private static final int MAGE_RITUAL_TOGGLE_TICKS = 40;
+    private static final int MAGE_RITUAL_COOLDOWN_TICKS = 20;
     private static final int SWING_SAMPLE_LIMIT = 4;
     private static final double MOTION_MIN_DISTANCE = 0.060D;
     private static final double MOTION_FORWARD = 0.040D;
     private static final double MOTION_UP = 0.045D;
     private static final double MOTION_SIDE = 0.045D;
+    private static final double PALM_DISTANCE_MAX = 0.14D;
+    private static final float PALM_FACING_DOT_MAX = -0.45F;
 
     private final SpellRecognitionService recognitionService = new SpellRecognitionService();
     private int taskTicks;
@@ -46,6 +52,11 @@ public class TaskSpellVoiceDebug extends VisorTask {
     private int lastMatchedSpellTick;
     private @Nullable PendingSpell pendingSpell;
     private @Nullable SpellArmSession spellArmSession;
+    private boolean mageMode;
+    private int palmsTogetherTicks;
+    private int mageToggleCooldownTicks;
+    private boolean mageFeedbackTriggered;
+    private boolean mageGestureLatched;
     private final ArrayDeque<HandSample> handSamples = new ArrayDeque<>();
     private final ArrayDeque<GestureEvent> recentGestureEvents = new ArrayDeque<>();
 
@@ -63,6 +74,7 @@ public class TaskSpellVoiceDebug extends VisorTask {
             return;
         }
         taskTicks++;
+        tickMageState(player);
 
         recognitionService.ensureRunning(minecraft.gameDirectory.toPath());
         sampleHandPose();
@@ -112,6 +124,11 @@ public class TaskSpellVoiceDebug extends VisorTask {
             return;
         }
 
+        if (!mageMode) {
+            sendChat(player, "[MAGIC LOCKED] Hold both palms together for 2 seconds");
+            return;
+        }
+
         if (snapshot.candidate().id().equals(lastMatchedSpellId)
                 && snapshot.text().equals(lastMatchedSpellText)
                 && taskTicks == lastMatchedSpellTick) {
@@ -129,6 +146,10 @@ public class TaskSpellVoiceDebug extends VisorTask {
 
     private void tryCastPendingSpell(LocalPlayer player) {
         if (pendingSpell == null) {
+            return;
+        }
+        if (!mageMode) {
+            pendingSpell = null;
             return;
         }
 
@@ -153,6 +174,94 @@ public class TaskSpellVoiceDebug extends VisorTask {
         sendChat(player, "[CAST " + Math.round(snapshot.score() * 100.0D) + "%] \"" + snapshot.text() + "\" -> " + snapshot.candidate().displayName());
     }
 
+    private void tickMageState(LocalPlayer player) {
+        if (mageToggleCooldownTicks > 0) {
+            mageToggleCooldownTicks--;
+        }
+
+        var pose = VisorAPI.client().getVRLocalPlayer().getPoseData(PlayerPoseType.TICK);
+        VRPose mainHand = pose.getMainHand();
+        VRPose offHand = pose.getOffhand();
+
+        boolean palmsTogether = arePalmsTogether(mainHand, offHand);
+        if (!palmsTogether) {
+            palmsTogetherTicks = 0;
+            mageFeedbackTriggered = false;
+            mageGestureLatched = false;
+            return;
+        }
+
+        palmsTogetherTicks++;
+        if (!mageFeedbackTriggered && palmsTogetherTicks >= MAGE_RITUAL_FEEDBACK_TICKS) {
+            mageFeedbackTriggered = true;
+            triggerMageRitualFeedback(player, mainHand, offHand);
+        }
+
+        if (mageFeedbackTriggered) {
+            spawnMagePalmCircles(player, mainHand, offHand);
+        }
+
+        if (!mageGestureLatched
+                && mageToggleCooldownTicks <= 0
+                && palmsTogetherTicks >= MAGE_RITUAL_TOGGLE_TICKS) {
+            mageMode = !mageMode;
+            mageGestureLatched = true;
+            mageToggleCooldownTicks = MAGE_RITUAL_COOLDOWN_TICKS;
+            pendingSpell = null;
+            spellArmSession = null;
+            recentGestureEvents.clear();
+            handSamples.clear();
+            VisorAPI.client().getInputManager().triggerHapticPulse(HandType.MAIN, mageMode ? 0.18F : 0.10F);
+            VisorAPI.client().getInputManager().triggerHapticPulse(HandType.OFFHAND, mageMode ? 0.18F : 0.10F);
+            sendChat(player, mageMode ? "[MAGE STATE] Enabled" : "[MAGE STATE] Disabled");
+        }
+    }
+
+    private boolean arePalmsTogether(VRPose mainHand, VRPose offHand) {
+        Vector3f mainPos = new Vector3f(mainHand.getPosition());
+        Vector3f offPos = new Vector3f(offHand.getPosition());
+        if (mainPos.distance(offPos) > PALM_DISTANCE_MAX) {
+            return false;
+        }
+
+        Vector3f mainDir = new Vector3f(mainHand.getDirection());
+        Vector3f offDir = new Vector3f(offHand.getDirection());
+        if (mainDir.lengthSquared() <= 0.0001F || offDir.lengthSquared() <= 0.0001F) {
+            return false;
+        }
+
+        mainDir.normalize();
+        offDir.normalize();
+        return mainDir.dot(offDir) <= PALM_FACING_DOT_MAX;
+    }
+
+    private void triggerMageRitualFeedback(LocalPlayer player, VRPose mainHand, VRPose offHand) {
+        VisorAPI.client().getInputManager().triggerHapticPulse(HandType.MAIN, 0.10F);
+        VisorAPI.client().getInputManager().triggerHapticPulse(HandType.OFFHAND, 0.10F);
+        spawnMagePalmCircles(player, mainHand, offHand);
+    }
+
+    private void spawnMagePalmCircles(LocalPlayer player, VRPose mainHand, VRPose offHand) {
+        spawnPalmCircle(player, new Vector3f(mainHand.getPosition()), new Vector3f(0.25F, 0.95F, 1.0F));
+        spawnPalmCircle(player, new Vector3f(offHand.getPosition()), new Vector3f(0.25F, 0.95F, 1.0F));
+    }
+
+    private void spawnPalmCircle(LocalPlayer player, Vector3fc origin, Vector3f color) {
+        for (int i = 0; i < 10; i++) {
+            double angle = (Math.PI * 2.0D * i) / 10.0D;
+            player.level().addParticle(
+                    new DustParticleOptions(color, 1.0F),
+                    origin.x() + Math.cos(angle) * 0.08D,
+                    origin.y(),
+                    origin.z() + Math.sin(angle) * 0.08D,
+                    0.0D,
+                    0.01D,
+                    0.0D
+            );
+        }
+        spawnRandomCloud(player, origin, ParticleTypes.ENCHANT, 4, 0.03D, 0.01D);
+    }
+
     private void sampleHandPose() {
         VRPose handPose = VisorAPI.client().getVRLocalPlayer()
                 .getPoseData(PlayerPoseType.TICK)
@@ -165,43 +274,11 @@ public class TaskSpellVoiceDebug extends VisorTask {
     }
 
     private void armGestureFromSpeech(String text) {
-        String spellId = detectSpellGestureStart(text);
-        if (spellId == null) {
+        var pattern = SpellDictionary.detectBySpeechFragment(text);
+        if (pattern == null) {
             return;
         }
-        armGestureForSpell(spellId);
-    }
-
-    private @Nullable String detectSpellGestureStart(String text) {
-        String normalized = text.toLowerCase(java.util.Locale.ROOT);
-        if (containsAny(normalized, "avada", "ava da", "ava")) {
-            return "avada_kedavra";
-        }
-        if (containsAny(normalized, "cru", "kru", "crew")) {
-            return "crucio";
-        }
-        if (containsAny(normalized, "expel", "expelli", "expeli", "ekspel", "spell")) {
-            return "expelliarmus";
-        }
-        if (containsAny(normalized, "lu", "lou", "lyu", "lumo", "lumo s")) {
-            return "lumos";
-        }
-        if (containsAny(normalized, "elen", "ellen", "sila", "seela", "syla", "lume", "lumen")) {
-            return "elen_sila_lume";
-        }
-        if (containsAny(normalized, "sect", "sek", "sectum", "sektum")) {
-            return "sectumsempra";
-        }
-        return null;
-    }
-
-    private boolean containsAny(String haystack, String... needles) {
-        for (String needle : needles) {
-            if (haystack.contains(needle)) {
-                return true;
-            }
-        }
-        return false;
+        armGestureForSpell(pattern.candidate().id());
     }
 
     private void armGestureForSpell(String spellId) {
@@ -293,29 +370,11 @@ public class TaskSpellVoiceDebug extends VisorTask {
     }
 
     private boolean matchesSpellGesture(String spellId, GestureType gestureType) {
-        return switch (spellId) {
-            case "crucio" -> gestureType == GestureType.FORWARD
-                    || gestureType == GestureType.SIDE
-                    || gestureType == GestureType.UP;
-            case "lumos" -> gestureType == GestureType.UP
-                    || gestureType == GestureType.FORWARD
-                    || gestureType == GestureType.SIDE;
-            case "avada_kedavra" -> gestureType == GestureType.FORWARD
-                    || gestureType == GestureType.SIDE
-                    || gestureType == GestureType.UP;
-            case "expelliarmus" -> gestureType == GestureType.FORWARD
-                    || gestureType == GestureType.UP
-                    || gestureType == GestureType.SIDE;
-            case "elen_sila_lume" -> gestureType == GestureType.UP
-                    || gestureType == GestureType.FORWARD
-                    || gestureType == GestureType.SIDE;
-            case "sectumsempra" -> gestureType == GestureType.SIDE
-                    || gestureType == GestureType.FORWARD
-                    || gestureType == GestureType.UP;
-            default -> gestureType == GestureType.FORWARD
-                    || gestureType == GestureType.SIDE
-                    || gestureType == GestureType.UP;
-        };
+        var pattern = SpellDictionary.findPattern(spellId);
+        if (pattern == null) {
+            return true;
+        }
+        return pattern.candidate().allowedGestures().contains(gestureType.name());
     }
 
     private void sendChat(LocalPlayer player, String message) {
@@ -324,7 +383,7 @@ public class TaskSpellVoiceDebug extends VisorTask {
 
     private void spawnSpellParticles(LocalPlayer player, SpellRecognitionSnapshot snapshot) {
         Vector3f origin = getWandTipPosition();
-        switch (snapshot.candidate().id()) {
+        switch (snapshot.candidate().particleStyle()) {
             case "avada_kedavra" -> spawnAvadaParticles(player, origin);
             case "crucio" -> spawnCrucioParticles(player, origin);
             case "expelliarmus" -> spawnExpelliarmusParticles(player, origin);
@@ -440,13 +499,9 @@ public class TaskSpellVoiceDebug extends VisorTask {
     }
 
     private void triggerSpellHaptics(SpellRecognitionSnapshot snapshot) {
-        float strength = snapshot.score() >= 0.85D ? 0.16F : 0.11F;
-        if ("avada_kedavra".equals(snapshot.candidate().id())) {
-            strength = 0.18F;
-        } else if ("crucio".equals(snapshot.candidate().id())) {
-            strength = 0.15F;
-        } else if ("elen_sila_lume".equals(snapshot.candidate().id())) {
-            strength = 0.14F;
+        float strength = snapshot.candidate().hapticStrength();
+        if (strength <= 0.0F) {
+            strength = snapshot.score() >= 0.85D ? 0.16F : 0.11F;
         }
 
         VisorAPI.client().getInputManager().triggerHapticPulse(HandType.MAIN, strength);
@@ -465,6 +520,11 @@ public class TaskSpellVoiceDebug extends VisorTask {
         lastMatchedSpellTick = 0;
         pendingSpell = null;
         spellArmSession = null;
+        mageMode = false;
+        palmsTogetherTicks = 0;
+        mageToggleCooldownTicks = 0;
+        mageFeedbackTriggered = false;
+        mageGestureLatched = false;
         handSamples.clear();
         recentGestureEvents.clear();
     }
