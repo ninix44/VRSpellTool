@@ -149,6 +149,27 @@ public final class SpellDictionary {
                     )
             ),
             spell(
+                    "elen_sila_lume",
+                    "Elen Sila Lume",
+                    List.of(
+                            "Elen s\u00edla l\u00famenn'",
+                            "elen sila lume",
+                            "elen sila lumen",
+                            "elen sila lumenn",
+                            "elen seela lume",
+                            "ellen sila lume",
+                            "elen syla lume",
+                            "ellen seela lumen"
+                    ),
+                    List.of(
+                            List.of("elen", "sila", "lume"),
+                            List.of("elen", "seela", "lume"),
+                            List.of("elen", "sila", "lumen"),
+                            List.of("ellen", "sila", "lume"),
+                            List.of("elen", "syla", "lume")
+                    )
+            ),
+            spell(
                     "sectumsempra",
                     "Sectumsempra",
                     List.of(

@@ -186,6 +186,9 @@ public class TaskSpellVoiceDebug extends VisorTask {
         if (containsAny(normalized, "lu", "lou", "lyu", "lumo", "lumo s")) {
             return "lumos";
         }
+        if (containsAny(normalized, "elen", "ellen", "sila", "seela", "syla", "lume", "lumen")) {
+            return "elen_sila_lume";
+        }
         if (containsAny(normalized, "sect", "sek", "sectum", "sektum")) {
             return "sectumsempra";
         }
@@ -303,6 +306,9 @@ public class TaskSpellVoiceDebug extends VisorTask {
             case "expelliarmus" -> gestureType == GestureType.FORWARD
                     || gestureType == GestureType.UP
                     || gestureType == GestureType.SIDE;
+            case "elen_sila_lume" -> gestureType == GestureType.UP
+                    || gestureType == GestureType.FORWARD
+                    || gestureType == GestureType.SIDE;
             case "sectumsempra" -> gestureType == GestureType.SIDE
                     || gestureType == GestureType.FORWARD
                     || gestureType == GestureType.UP;
@@ -323,6 +329,7 @@ public class TaskSpellVoiceDebug extends VisorTask {
             case "crucio" -> spawnCrucioParticles(player, origin);
             case "expelliarmus" -> spawnExpelliarmusParticles(player, origin);
             case "lumos" -> spawnLumosParticles(player, origin);
+            case "elen_sila_lume" -> spawnElenSilaLumeParticles(player, origin);
             case "sectumsempra" -> spawnSectumsempraParticles(player, origin);
             default -> spawnGenericParticles(player, origin);
         }
@@ -362,6 +369,16 @@ public class TaskSpellVoiceDebug extends VisorTask {
                 new DustParticleOptions(new Vector3f(1.0F, 0.95F, 0.55F), 1.35F),
                 origin.x(), origin.y(), origin.z(),
                 0.0D, 0.02D, 0.0D
+        );
+    }
+
+    private void spawnElenSilaLumeParticles(LocalPlayer player, Vector3fc origin) {
+        spawnBurstRing(player, origin, ParticleTypes.END_ROD, 20, 0.34D, 0.11D);
+        spawnRandomCloud(player, origin, ParticleTypes.ENCHANT, 14, 0.07D, 0.03D);
+        player.level().addParticle(
+                new DustParticleOptions(new Vector3f(0.82F, 0.93F, 1.0F), 1.25F),
+                origin.x(), origin.y(), origin.z(),
+                0.0D, 0.025D, 0.0D
         );
     }
 
@@ -428,6 +445,8 @@ public class TaskSpellVoiceDebug extends VisorTask {
             strength = 0.18F;
         } else if ("crucio".equals(snapshot.candidate().id())) {
             strength = 0.15F;
+        } else if ("elen_sila_lume".equals(snapshot.candidate().id())) {
+            strength = 0.14F;
         }
 
         VisorAPI.client().getInputManager().triggerHapticPulse(HandType.MAIN, strength);

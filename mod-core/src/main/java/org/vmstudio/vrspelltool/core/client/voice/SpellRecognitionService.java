@@ -389,6 +389,23 @@ public final class SpellRecognitionService {
             variants.add("mus");
             variants.add("mes");
             variants.add("muse");
+        } else if ("elen".equals(expected) || "ellen".equals(expected)) {
+            variants.add("elen");
+            variants.add("ellen");
+            variants.add("alan");
+            variants.add("elan");
+        } else if ("sila".equals(expected) || "seela".equals(expected) || "syla".equals(expected)) {
+            variants.add("sila");
+            variants.add("seela");
+            variants.add("syla");
+            variants.add("sela");
+            variants.add("see la");
+        } else if ("lume".equals(expected) || "lumen".equals(expected)) {
+            variants.add("lume");
+            variants.add("lumen");
+            variants.add("loom");
+            variants.add("loomay");
+            variants.add("loo me");
         } else if ("sempra".equals(expected)) {
             variants.add("sempra");
             variants.add("sem pra");
